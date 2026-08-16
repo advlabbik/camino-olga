@@ -1,0 +1,95 @@
+[
+  {
+    "id": "bivio_giorno1",
+    "seg": "frances", "km0": 0, "km1": 2.0,
+    "dates": ["2026-09-12"],
+    "level": "critico",
+    "title": "Napoléon o Valcarlos? Decidi al bivio",
+    "body": "Il bivio è 100 m dopo la Porte d'Espagne. La parola dell'ufficio pellegrini (39 rue de la Citadelle, dalle 7:30) è legge — se dicono Valcarlos, si va per Valcarlos, senza discutere. Con bel tempo la Napoléon è più dura ma magnifica. Parti entro le 8 con 2 litri d'acqua."
+  },
+  {
+    "id": "orisson_acqua",
+    "seg": "frances", "km0": 6.5, "km1": 7.8,
+    "level": "critico",
+    "title": "Orisson — ultimo bar prima di Roncisvalle",
+    "body": "Dopo Orisson ci sono ~16 km senza servizi. Riempi 2 litri, mangia qualcosa. Più avanti solo la Fontaine de Roland (~km 16, non sempre attiva) e con fortuna un furgone snack."
+  },
+  {
+    "id": "izandorre_sos",
+    "seg": "frances", "km0": 17.0, "km1": 20.0,
+    "level": "info",
+    "title": "Rifugio d'emergenza Izandorre",
+    "body": "Tra i paletti 43 e 44 c'è un rifugio in pietra con pulsante SOS collegato al 112 Navarra. Solo per emergenze — ma sappi che c'è. In caso di nebbia resta sul sentiero segnato e chiama il 112 dicendo il numero del paletto più vicino."
+  },
+  {
+    "id": "discesa_lepoeder",
+    "seg": "frances", "km0": 19.5, "km1": 20.5,
+    "level": "attenzione",
+    "title": "Col de Lepoeder — scegli bene la discesa",
+    "body": "Da qui due discese per Roncisvalle. Bosco = ripida e scivolosa se bagnata. Con pioggia o gambe stanche prendi a destra per il Puerto de Ibañeta — più lunga ma dolce."
+  },
+  {
+    "id": "discesa_zubiri",
+    "seg": "frances", "km0": 38.0, "km1": 44.0,
+    "level": "attenzione",
+    "title": "Discesa dell'Alto de Erro",
+    "body": "Il tratto roccioso prima di Zubiri è il più scivoloso della prima settimana, specie con pioggia. Passo corto, bastoncini se li hai."
+  },
+  {
+    "id": "san_mateo",
+    "seg": "frances", "km0": 120, "km1": 158,
+    "dates_range": ["2026-09-15", "2026-09-25"],
+    "level": "critico",
+    "title": "Logroño in festa — San Mateo 19-25 settembre",
+    "body": "Le feste della vendemmia riempiono la città e i prezzi salgono. O prenoti Logroño con giorni di anticipo, oppure dormi a Viana (9,6 km prima), attraversi Logroño in mattinata godendoti la festa a pranzo e dormi a Navarrete (12,9 km dopo). Anche Viana e Navarrete vanno prenotate 1-2 giorni prima in quei giorni."
+  },
+  {
+    "id": "carrion_gap",
+    "seg": "frances", "km0": 357, "km1": 361.5,
+    "level": "critico",
+    "title": "Davanti a te 17 km di niente",
+    "body": "Da Carrión de los Condes a Calzadilla de la Cueza non c'è un paese, un bar né una fontana. Nemmeno ombra. Riempi tutte le borracce, compra da mangiare, parti presto se fa caldo."
+  },
+  {
+    "id": "zona_sarria",
+    "seg": "frances", "km0": 642, "km1": 755,
+    "level": "attenzione",
+    "title": "Ultimi 100 km — regole speciali",
+    "body": "Da Sarria servono 2 timbri al giorno per la Compostela. E qui il cammino si affolla — prenota il letto con 1-2 giorni di anticipo, sempre."
+  },
+  {
+    "id": "bivio_muxia",
+    "seg": "epilogo_fisterra", "km0": 58.5, "km1": 60.0,
+    "level": "info",
+    "title": "Bivio di Hospital — Fisterra o Muxía?",
+    "body": "Qui la strada si divide. A sinistra Fisterra (l'oceano e il km 0), a destra Muxía. Puoi decidere adesso — in ottobre i letti si trovano da entrambe le parti. Molti fanno Fisterra e poi la costiera per Muxía il giorno dopo."
+  },
+  {
+    "id": "epilogo_gap",
+    "seg": "epilogo_fisterra", "km0": 33.0, "km1": 35.0,
+    "level": "attenzione",
+    "title": "Tratto lungo senza bar",
+    "body": "Tra Vilaserío e Santa Mariña ci sono 8 km senza servizi. Acqua e uno snack prima di ripartire."
+  },
+  {
+    "id": "fisterra_tramonto",
+    "seg": "epilogo_fisterra", "km0": 80.0, "km1": 88.0,
+    "level": "info",
+    "title": "Il tramonto al faro",
+    "body": "Il tramonto al Faro di Fisterra è verso le 19:45 e l'ultimo bus per Santiago parte prima. Se vuoi vederlo — e lo vorrai — stanotte si dorme a Fisterra. Il faro è a 3 km dal paese, passeggiata dolce anche in sandali."
+  },
+  {
+    "id": "domenica_negozi",
+    "weekly": "sabato",
+    "level": "attenzione",
+    "title": "Domani è domenica",
+    "body": "In Spagna i negozi domenica sono chiusi o aprono solo la mattina. Compra oggi il cibo per domani — pranzo e scorte."
+  },
+  {
+    "id": "siesta",
+    "daily": true,
+    "level": "info",
+    "title": "Ricorda la siesta",
+    "body": "I negozi dei paesi chiudono dalle 14 alle 17 circa. Il pranzo si compra la mattina, non alle 15."
+  }
+]

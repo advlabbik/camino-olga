@@ -1,0 +1,21 @@
+{
+  "regola": "Il timbro (sello) si chiede ovunque — albergue, chiese, bar, municipi. Frase magica «¿Me puede sellar la credencial, por favor?». Fino a Sarria basta 1 al giorno, da Sarria in poi ne servono 2 al giorno per la Compostela. L'albergue dove dormi timbra sempre — il secondo prendilo a pranzo o in una chiesa.",
+  "famosi": [
+    { "seg": "frances", "km": 0.0,   "name": "Ufficio pellegrini di Saint-Jean", "note": "Il primo timbro, insieme alla credencial. Qui comincia tutto." },
+    { "seg": "frances", "km": 23.2,  "name": "Collegiata di Roncisvalle", "note": "Il timbro del monastero, dopo i Pirenei. Guadagnato." },
+    { "seg": "frances", "km": 64.5,  "name": "Cattedrale di Pamplona", "note": "Prima grande città, primo timbro da cattedrale." },
+    { "seg": "frances", "km": 88.5,  "name": "Puente la Reina — Chiesa del Crucifijo", "note": "Dove tutti i cammini si uniscono. Il ponte medievale è da foto." },
+    { "seg": "frances", "km": 205.5, "name": "Cattedrale di Santo Domingo de la Calzada", "note": "Quella con la gallina viva dentro. Storia strana, timbro bellissimo." },
+    { "seg": "frances", "km": 278.0, "name": "Cattedrale di Burgos", "note": "Patrimonio Unesco. Il timbro è all'altezza del posto." },
+    { "seg": "frances", "km": 397.0, "name": "Sahagún — Santuario de la Peregrina", "note": "Qui rilasciano il certificato di metà cammino. Da incorniciare." },
+    { "seg": "frances", "km": 454.0, "name": "Cattedrale di León", "note": "Le vetrate più belle di Spagna. Giorno di riposo perfetto." },
+    { "seg": "frances", "km": 502.0, "name": "Astorga — Palazzo di Gaudí e cattedrale", "note": "Due timbri in una piazza sola." },
+    { "seg": "frances", "km": 554.0, "name": "Castello dei Templari di Ponferrada", "note": "Un timbro da cavalieri." },
+    { "seg": "frances", "km": 604.0, "name": "O Cebreiro — Santa María la Real", "note": "La chiesa più antica del cammino, nell'aria della Galizia." },
+    { "seg": "frances", "km": 642.0, "name": "Sarria — Monastero della Magdalena", "note": "Da qui in poi, due timbri al giorno. Comincia il conto alla rovescia." },
+    { "seg": "frances", "km": 664.0, "name": "Portomarín — San Xoán", "note": "La chiesa-fortezza smontata e rimontata pietra per pietra sopra la diga." },
+    { "seg": "frances", "km": 754.8, "name": "Santiago — Oficina del Peregrino", "note": "L'ultimo timbro del Francese e la Compostela. Rúa Carretas 33." },
+    { "seg": "epilogo_fisterra", "km": 85.2, "name": "Fisterra — Ufficio turismo", "note": "La Fisterrana, il certificato dell'oceano. Praza da Constitución 31." },
+    { "seg": "epilogo_muxia", "km": 26.5, "name": "Muxía — Municipio", "note": "La Muxiana. Nei weekend la fa anche l'albergue Bela Muxía." }
+  ]
+}

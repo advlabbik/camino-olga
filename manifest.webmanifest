@@ -1,0 +1,14 @@
+{
+  "name": "Buen Camino, Olga",
+  "short_name": "Buen Camino",
+  "description": "Il compagno di cammino di Olga — Saint-Jean-Pied-de-Port, Santiago, Fisterra.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#141C28",
+  "theme_color": "#0F4C97",
+  "lang": "it",
+  "icons": [
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

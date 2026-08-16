@@ -2,51 +2,30 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0F4C97">
+<meta name="description" content="Il compagno di cammino di Olga — Saint-Jean-Pied-de-Port, Santiago, Fisterra.">
 <title>Buen Camino, Olga</title>
-<style>
-  :root {
-    --bg: #FAF8F2; --ink: #232B36; --muted: #5C6672;
-    --blue: #0F4C97; --yellow: #DFA00A; --line: #E2DCCE; --panel: #FFFFFF;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #141C28; --ink: #E9E5DB; --muted: #9BA6B2;
-      --blue: #7FA9E0; --yellow: #F4C33F; --line: #2C3A4E; --panel: #1C2634;
-    }
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--ink);
-    font: 17px/1.6 -apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;
-    min-height: 100svh; display: grid; place-items: center; padding: 24px;
-  }
-  main { max-width: 420px; text-align: center; }
-  svg { width: 72px; height: 72px; margin-bottom: 18px; }
-  svg path { stroke: var(--yellow); stroke-width: 2.4; fill: none; stroke-linecap: round; }
-  h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 10px; color: var(--blue); }
-  p { color: var(--muted); margin: 0 0 8px; }
-  .tag {
-    display: inline-block; margin-top: 18px; padding: 6px 12px; border-radius: 99px;
-    border: 1px solid var(--line); background: var(--panel);
-    font-size: 12.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
-  }
-</style>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icon.svg">
+<link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
-<main>
-  <svg viewBox="0 0 54 54" aria-hidden="true">
-    <path d="M27 46 C14 40 9 28 10 14"/>
-    <path d="M27 46 C21 37 18 26 19 12"/>
-    <path d="M27 46 C27 35 27 22 27 10"/>
-    <path d="M27 46 C33 37 36 26 35 12"/>
-    <path d="M27 46 C40 40 45 28 44 14"/>
+<header class="topbar">
+  <svg viewBox="0 0 54 54" aria-hidden="true" fill="none" stroke="#F4C33F" stroke-width="3" stroke-linecap="round">
+    <path d="M27 46 C14 40 9 28 10 14"/><path d="M27 46 C21 37 18 26 19 12"/><path d="M27 46 C27 35 27 22 27 10"/><path d="M27 46 C33 37 36 26 35 12"/><path d="M27 46 C40 40 45 28 44 14"/>
   </svg>
-  <h1>Buen Camino, Olga</h1>
-  <p>Il tuo compagno di cammino sta prendendo forma.</p>
-  <p>Saint-Jean-Pied-de-Port → Santiago → Fisterra</p>
-  <span class="tag">In costruzione · M1</span>
-</main>
+  <span class="t">Buen Camino, Olga</span>
+  <span class="d" id="hdrDate"></span>
+</header>
+<main id="main"><div class="card"><p class="small">Carico il cammino…</p></div></main>
+<nav class="tabs">
+  <button data-tab="oggi"><span class="e">🥾</span>Oggi</button>
+  <button data-tab="diario"><span class="e">📖</span>Diario</button>
+  <button data-tab="info"><span class="e">🐚</span>Schede</button>
+  <button data-tab="setup"><span class="e">⚙️</span>Setup</button>
+</nav>
+<script src="assets/app.js"></script>
 </body>
 </html>

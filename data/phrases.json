@@ -1,0 +1,55 @@
+{
+  "parto": [
+    "Buen camino, {nome}. Oggi la strada è tutta tua.",
+    "Zaino in spalla. Il mondo oggi si vede a piedi.",
+    "Un passo dopo l'altro, come sempre. Al resto pensa la strada.",
+    "Giorno {giorno}. Chi l'avrebbe detto, eh?",
+    "Hai già {km} km nelle gambe. Oggi se ne aggiunge un pezzetto.",
+    "Colazione fatta? Allora si va. C'è una bella giornata di cammino davanti.",
+    "Anche oggi la strada sa dove portarti. Tu pensa solo a camminare.",
+    "Le scarpe sono pronte più di te. Dài, che si parte.",
+    "Il cammino ricomincia ogni mattina. E ogni mattina tu ci sei.",
+    "Oggi cammini, respiri e ti stupisci. Non serve altro."
+  ],
+  "parto_pioggia": [
+    "Piove? Il cammino è bello anche col cappuccio. Passo corto e via.",
+    "Oggi acqua dal cielo. I pellegrini veri si riconoscono così.",
+    "Mantella su e sorriso sotto. La pioggia prima o poi si stanca."
+  ],
+  "parto_duro": [
+    "Oggi si sale. Piano piano va benissimo, non è una gara.",
+    "Giornata tosta davanti. Tu falla a modo tuo, un passo alla volta."
+  ],
+  "advisor": [
+    "Vediamo che letto ti sei guadagnata oggi.",
+    "Le gambe hanno fatto la loro parte. Al resto pensiamo noi.",
+    "Un buon posto per stanotte c'è sempre. Cerchiamolo insieme.",
+    "Ora scegliamo bene, poi doccia e cena. Te lo meriti tutto."
+  ],
+  "fine": [
+    "Arrivata. Oggi te la sei proprio guadagnata.",
+    "Un'altra tappa nelle gambe e nel cuore.",
+    "Doccia, bucato e orgoglio. In quest'ordine.",
+    "Guarda quanti chilometri. E pensare che li hai fatti tu.",
+    "Fine tappa. Adesso riposa, che domani la strada ti rivuole.",
+    "Ogni giorno che finisce è un pezzo di cammino che nessuno ti toglie più."
+  ],
+  "fine_dura": [
+    "Oggi bastava arrivare. E sei arrivata.",
+    "Giornata dura, arrivo dolce. Adesso pensa solo a te.",
+    "Le giornate storte fanno le storie migliori. Ma ora riposa."
+  ],
+  "milestones": [
+    { "id": "spagna",   "seg": "frances", "km": 16.0,  "text": "Benvenuta in Spagna. A piedi, come si deve." },
+    { "id": "cento",    "seg": "frances", "km": 100.0, "text": "Cento chilometri. Fatti uno per uno con le tue gambe." },
+    { "id": "meta",     "seg": "frances", "km": 372.5, "text": "Metà cammino. A Sahagún c'è pure il certificato che lo dice — chiedilo al Santuario della Peregrina." },
+    { "id": "cruz",     "seg": "frances", "km": 529.0, "text": "La Cruz de Ferro è vicina. Lascia il tuo sasso — il peso resta qui." },
+    { "id": "galizia",  "seg": "frances", "km": 604.0, "text": "Senti l'aria? È già Galizia." },
+    { "id": "sarria",   "seg": "frances", "km": 642.0, "text": "Ultimi 100 km. Da qui i timbri sono due al giorno." },
+    { "id": "gozo",     "seg": "frances", "km": 749.5, "text": "Monte do Gozo. Guarda laggiù — le torri della cattedrale." },
+    { "id": "santiago", "seg": "frances", "km": 754.3, "text": "Sei arrivata, {nome}. Piazza dell'Obradoiro. Tutto questo l'hai fatto tu." },
+    { "id": "fisterra", "seg": "epilogo_fisterra", "km": 85.0, "text": "La terra è finita. L'oceano no. E nemmeno tu." },
+    { "id": "faro",     "seg": "epilogo_fisterra", "km": 87.5, "text": "Km 0. Più in là di così si va solo per mare." },
+    { "id": "muxia",    "seg": "epilogo_muxia",    "km": 26.0, "text": "Muxía. Il santuario, le onde, la fine più silenziosa." }
+  ]
+}
