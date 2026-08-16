@@ -22,6 +22,7 @@ function bcoInitMap() {
   const holder = document.getElementById('map');
   if (!holder) return;
   if (MAP) { MAP.remove(); MAP = null; POILAYER = null; }
+  for (const k of Object.keys(MAPLAYERS)) delete MAPLAYERS[k]; /* niente livelli fantasma dopo re-init o Cancella tutto */
   MAP = L.map('map', { preferCanvas: true });
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
     maxZoom: 18, attribution: 'Tiles © Esri — Esri, HERE, Garmin, © OpenStreetMap contributors'
@@ -73,7 +74,7 @@ function bcoInitMap() {
   if (S.setup && S.setup.nights) {
     const g = L.layerGroup();
     for (const n of S.setup.nights) {
-      if (n.seg == null || n.km == null) continue;
+      if (n.seg == null || n.km == null || !DATA.track[n.seg] || !Number.isFinite(n.km)) continue;
       const pt = ptAt(n.seg, n.km);
       const m = L.marker([pt[0], pt[1]], { icon: L.divIcon({ className: 'sello-ico', html: '📌', iconSize: [28, 28], iconAnchor: [14, 14] }) });
       m.bindPopup('<b>' + escMap(n.name) + '</b><br>' + escMap(n.place) + ' · ' + escMap(n.date) + (n.note ? '<br>' + escMap(n.note) : ''));
@@ -83,10 +84,11 @@ function bcoInitMap() {
   }
 
   /* ultima posizione (reale o simulata) */
-  if (S.lastPos) {
+  if (S.lastPos && DATA.track[S.lastPos.seg]) {
     const pt = ptAt(S.lastPos.seg, S.lastPos.km);
+    const quando = S.lastPos.t ? ' · ' + new Date(S.lastPos.t).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
     L.marker([pt[0], pt[1]], { icon: L.divIcon({ className: 'sello-ico', html: '📍', iconSize: [28, 28], iconAnchor: [14, 26] }) })
-      .bindPopup('Ultima posizione registrata').addTo(MAP);
+      .bindPopup('Ultima posizione registrata' + quando).addTo(MAP);
     PROF.seg = S.lastPos.seg; PROF.km = S.lastPos.km;
   }
 
@@ -248,8 +250,12 @@ function profBind() {
   cv.addEventListener('pointermove', move);
   cv.addEventListener('pointerup', () => { dragging = false; });
   cv.addEventListener('pointercancel', () => { dragging = false; });
-  if (window.ResizeObserver) new ResizeObserver(() => requestAnimationFrame(profDraw)).observe(cv);
-  window.addEventListener('resize', () => requestAnimationFrame(profDraw));
+  if (window.ResizeObserver) {
+    if (PROF.ro) PROF.ro.disconnect();
+    PROF.ro = new ResizeObserver(() => requestAnimationFrame(profDraw));
+    PROF.ro.observe(cv);
+  }
+  if (!window.__bcoProfResize) { window.__bcoProfResize = true; window.addEventListener('resize', () => requestAnimationFrame(profDraw)); }
 }
 function profDraw() {
   const cv = document.getElementById('prof'); if (!cv || !DATA.track[PROF.seg]) return;

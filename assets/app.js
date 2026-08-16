@@ -17,17 +17,18 @@ async function loadData() {
     try { const r = await fetch(p); if (!r.ok) throw 0; return await r.json(); }
     catch (e) { if (optional) return null; throw new Error('Impossibile caricare ' + p); }
   };
-  DATA.track = await get('data/track.json');
-  DATA.phrases = await get('data/phrases.json');
-  DATA.alerts = (await get('data/alerts.json', true)) || [];
-  DATA.sellos = await get('data/sellos.json', true);
-  const pj = await get('data/pois.json', true);
+  /* in parallelo: su rete lenta ogni fetch sequenziale sarebbe un'attesa in più */
+  const [track, phrases, alerts, sellos, pj, lj, status] = await Promise.all([
+    get('data/track.json'), get('data/phrases.json'), get('data/alerts.json', true),
+    get('data/sellos.json', true), get('data/pois.json', true), get('data/localities.json', true),
+    get('data/status.json', true)
+  ]);
+  DATA.track = track; DATA.phrases = phrases; DATA.alerts = alerts || []; DATA.sellos = sellos;
   DATA.pois = pj ? (Array.isArray(pj) ? pj : pj.pois) : null;
-  const lj = await get('data/localities.json', true);
   DATA.loc = lj ? (Array.isArray(lj) ? lj : lj.localities) : null;
   if (!Array.isArray(DATA.pois)) DATA.pois = null;
   if (!Array.isArray(DATA.loc)) DATA.loc = null;
-  DATA.status = await get('data/status.json', true);
+  DATA.status = status;
 }
 
 /* ===================== tempo e posizione (con override di test) ===================== */
@@ -113,8 +114,21 @@ function kmToSantiago(seg, km) {
 }
 function kmToFisterra(seg, km) {
   if (seg === 'epilogo_fisterra') return Math.max(0, EP_LEN() - km);
-  if (seg === 'epilogo_muxia' || seg === 'link_fisterra_muxia') return 0;
+  /* sui rami di Muxía "l'oceano" è il capo di Muxía: residuo del ramo, non zero */
+  if (seg === 'epilogo_muxia' || seg === 'link_fisterra_muxia') return Math.max(0, DATA.track[seg].km_total - km);
   return kmToSantiago(seg, km) + EP_LEN();
+}
+const MUXIA_FORK = 60.0; /* bivio di Hospital sul km dell'Epilogo */
+function walkedBetween(s0, k0, s1, k1) {
+  if (s0 === s1) return Math.max(0, k1 - k0);
+  const M = {
+    'valcarlos>frances': (DATA.track.valcarlos.km_total - k0) + Math.max(0, k1 - FR_RONCES),
+    'frances>epilogo_fisterra': Math.max(0, FR_LEN() - k0) + k1,
+    'epilogo_fisterra>epilogo_muxia': Math.max(0, MUXIA_FORK - k0) + k1,
+    'epilogo_fisterra>link_fisterra_muxia': Math.max(0, 85.2 - k0) + k1
+  };
+  const v = M[s0 + '>' + s1];
+  return v != null ? Math.max(0, v) : 0;
 }
 
 /* ===================== passo e proiezioni ===================== */
@@ -124,7 +138,8 @@ function paceKmh() {
     .map(d => d.km / Math.max(0.5, (new Date(d.end.t) - new Date(d.start.t)) / 3600000)).slice(-6);
   const m = median(v);
   if (m) return Math.min(5.5, Math.max(2.2, m));
-  return S.days.length === 0 ? 3.0 : 3.5; /* giorno 1 in salita: prudente */
+  /* nessuna tappa CHIUSA ancora = giorno 1 in salita: prudente (il giorno di oggi può già essere in S.days) */
+  return S.days.filter(d => d.end).length === 0 ? 3.0 : 3.5;
 }
 function dailyKmMedian() { const v = S.days.filter(d => d.km > 3).map(d => d.km).slice(-8); return median(v) || 21; }
 function fmtDate(d) { return d.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' }); }
@@ -145,11 +160,16 @@ async function fetchWeather(samples) {
     '&hourly=temperature_2m,precipitation_probability,weather_code,wind_speed_10m&daily=sunrise,sunset&forecast_days=2&timezone=Europe%2FMadrid';
   const r = await fetch(url); if (!r.ok) throw new Error('meteo non raggiungibile');
   let j = await r.json(); if (!Array.isArray(j)) j = [j];
+  /* H.time è in ORA LOCALE di Madrid (timezone della richiesta): la chiave va costruita
+     nello stesso fuso, MAI in UTC — altrimenti tutto il meteo slitta di 2 ore (bug trovato
+     dalla revisione multi-agente) */
+  const fmtMadrid = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' });
   const out = samples.map((s, i) => {
     const loc = j[Math.min(i, j.length - 1)], H = loc.hourly;
-    const iso = s.eta.toISOString().slice(0, 13) + ':00';
-    let idx = H.time.indexOf(iso); if (idx < 0) idx = Math.min(H.time.length - 1, Math.max(0, Math.round((s.eta - new Date(H.time[0])) / 3600000)));
-    return { ...s, temp: Math.round(H.temperature_2m[idx]), prob: H.precipitation_probability[idx], code: H.weather_code[idx], wind: Math.round(H.wind_speed_10m[idx]) };
+    const key = fmtMadrid.format(s.eta).replace(' ', 'T') + ':00';
+    let idx = H.time.indexOf(key);
+    if (idx < 0) idx = Math.min(H.time.length - 1, Math.max(0, Math.round((s.eta - new Date(H.time[0])) / 3600000)));
+    return { ...s, temp: Math.round(H.temperature_2m[idx]), prob: H.precipitation_probability[idx] == null ? 0 : H.precipitation_probability[idx], code: H.weather_code[idx], wind: Math.round(H.wind_speed_10m[idx]) };
   });
   const d0 = j[0].daily;
   return { rows: out, sunrise: d0.sunrise[0].slice(11, 16), sunset: d0.sunset[0].slice(11, 16), sunsetDate: new Date(d0.sunset[0]) };
@@ -176,7 +196,9 @@ function nearLocName(seg, km) {
 function fillPhrase(t) {
   const nome = (S.setup && S.setup.profile && S.setup.profile.name) || 'pellegrina';
   const kmTot = Math.round(S.days.reduce((a, d) => a + (d.km || 0), 0));
-  return t.replace('{nome}', nome).replace('{giorno}', String(S.days.length + 1)).replace('{km}', String(kmTot));
+  /* numero del giorno = giorni PRIMA di oggi + 1 (regge sia prima sia dopo il push di oggi) */
+  const giorno = Math.max(1, S.days.filter(d => d.date < todayStr()).length + 1);
+  return t.replace('{nome}', nome).replace('{giorno}', String(giorno)).replace('{km}', String(kmTot));
 }
 function pickPhrase(reg) {
   const pool = (DATA.phrases[reg] || []).map((t, i) => reg + ':' + i);
@@ -256,7 +278,13 @@ function ribbon(seg, km, horizon) {
     rows.push({ km: sl.km, ico: ICONS.sello, main: sl.name, sub: sl.note });
   }
   rows.sort((a, b) => a.km - b.km);
-  return rows.slice(0, 42);
+  if (rows.length > 60) {
+    const extra = rows.length - 60;
+    const cut = rows.slice(0, 60);
+    cut.push({ km: cut[59].km, ico: '…', main: 'altri ' + extra + ' punti più avanti nel raggio', sub: '', dim: true });
+    return cut;
+  }
+  return rows;
 }
 
 /* ===================== advisor "dove dormo" ===================== */
@@ -269,8 +297,11 @@ function classify(L) {
 function adviseSleep(pos, wx) {
   const { seg, km } = pos;
   const pace = paceKmh();
-  /* usa l'ORA del tramonto sulla data di oggi (l'API può rispondere con un'altra data) */
-  const sunset = (() => { const d = now(); const [hh, mm] = (wx && wx.sunset ? wx.sunset : '20:10').split(':').map(Number); d.setHours(hh, mm, 0, 0); return d; })();
+  /* usa l'ORA del tramonto sulla data di oggi (l'API può rispondere con un'altra data);
+     senza meteo, ripiega sull'ultimo tramonto noto o su una stima per mese (a ottobre il
+     tramonto fisso delle 20:10 regalerebbe luce inesistente) */
+  const fbSunset = (S.lastWeather && S.lastWeather.sunset) || (now().getMonth() + 1 >= 10 ? '19:45' : '20:10');
+  const sunset = (() => { const d = now(); const [hh, mm] = (wx && wx.sunset ? wx.sunset : fbSunset).split(':').map(Number); d.setHours(hh, mm, 0, 0); return d; })();
   const hoursLeft = Math.max(0, (sunset - now()) / 3600000 - 1); /* margine 1h */
   const reach = Math.min(28, Math.max(2, pace * hoursLeft));
   const segLen = DATA.track[seg].km_total;
@@ -279,7 +310,12 @@ function adviseSleep(pos, wx) {
   const sat = now().getDay() === 6;
   const rainPm = wx && wx.rows.some(r => r.prob >= 55);
   const sleepLocs = DATA.loc.filter(L => L.seg === seg && L.km > km + 0.3 && (L.sl || 0) > 0);
-  const cands = sleepLocs.filter(L => L.km <= km + reach).slice(0, 8);
+  /* NON le 8 più vicine (in Galizia le frazioni saturerebbero la lista nascondendo Sarria
+     o Portomarín — bug trovato dalla revisione): prima le mete vere nel raggio, poi le frazioni */
+  const within = sleepLocs.filter(L => L.km <= km + reach);
+  const isMeta = L => classify(L) !== 'piccolo' || CANONICHE.some(c => L.name.toLowerCase().includes(c.toLowerCase()));
+  const big = within.filter(isMeta), small = within.filter(L => !isMeta(L));
+  const cands = big.slice(0, 8).concat(small.slice(0, Math.max(0, 8 - big.length))).sort((a, b) => a.km - b.km);
   for (const L of cands) {
     const etaH = (L.km - km) / pace;
     const eta = new Date(now().getTime() + etaH * 3600000);
@@ -316,11 +352,13 @@ function adviseSleep(pos, wx) {
     }
     out.options.push({ name: L.name, km: L.km, lat: L.lat, lon: L.lon, dist: L.km - km, eta: etaStr, cls, sl: L.sl || 0, alb: L.alb || 0, gapNext: gapNext, tone, advice, pressure, food });
   }
-  /* Santiago geometricamente vive sull'Epilogo al km 0 — se è a portata, è sempre un'opzione */
+  /* Santiago geometricamente vive sull'Epilogo al km 0 — se è a portata (o ci è già), è sempre un'opzione */
   const toSdc = kmToSantiago(seg, km);
-  if (seg === 'frances' && toSdc > 0.3 && toSdc <= reach && !out.options.some(o => /santiago/i.test(o.name))) {
-    const eta = new Date(now().getTime() + toSdc / pace * 3600000);
-    out.options.push({ name: 'Santiago de Compostela', km: km + toSdc, lat: 42.8806, lon: -8.5446, dist: toSdc, eta: eta.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }), cls: 'città', sl: 46, alb: 20, gapNext: 0, tone: 'ok', advice: 'Sei arrivata — qualcosa si trova sempre. E prima di cercare il letto, passa dall’Oficina del Peregrino per la Compostela.', pressure: 0 });
+  const aSantiago = (seg === 'frances' && toSdc <= reach) || (seg === 'epilogo_fisterra' && km < 1);
+  if (aSantiago && !out.options.some(o => /santiago/i.test(o.name))) {
+    const d = seg === 'frances' ? Math.max(0, toSdc) : 0;
+    const eta = new Date(now().getTime() + d / pace * 3600000);
+    out.options.unshift({ name: 'Santiago de Compostela', km: km + d, lat: 42.8806, lon: -8.5446, dist: d, eta: eta.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }), cls: 'città', sl: 46, alb: 20, gapNext: 0, tone: 'ok', advice: d < 0.5 ? 'Sei a Santiago — qualcosa si trova sempre. Prima del letto, passa dall’Oficina del Peregrino per la Compostela.' : 'Sei quasi arrivata — qualcosa si trova sempre. E prima di cercare il letto, passa dall’Oficina del Peregrino per la Compostela.', pressure: 0 });
   }
   out.beyond = sleepLocs.filter(L => L.km > km + reach).slice(0, 2).map(L => ({ name: L.name, dist: L.km - km }));
   return out;
@@ -399,7 +437,7 @@ function bigBtn(id, e, t, s, primary) {
 function viewVigilia(m) {
   const start = new Date(S.setup.profile.start + 'T08:00');
   const gg = Math.ceil((start - now()) / 86400000);
-  m.append(el('<div class="phrase">' + esc(gg > 1 ? 'Meno ' + gg + ' giorni, ' + esc(S.setup.profile.name) + '. Lo zaino si prepara da solo? No. Ma quasi.' : 'Ci siamo quasi. Domani si comincia a camminare davvero.') + '</div>'));
+  m.append(el('<div class="phrase">' + esc(gg > 1 ? 'Meno ' + gg + ' giorni, ' + (S.setup.profile.name || '') + '. Lo zaino si prepara da solo? No. Ma quasi.' : 'Ci siamo quasi. Domani si comincia a camminare davvero.') + '</div>'));
   let h = '<h2>Il viaggio verso il Cammino</h2><div class="timeline">';
   for (const t of (S.setup.travel || [])) {
     h += '<div class="tl"><span class="when">' + esc(t.when) + '</span><b>' + esc(t.title) + '</b><span class="small">' + esc(t.note || '') + '</span></div>';
@@ -415,15 +453,21 @@ async function flowParto() {
   const c = $('#content'); c.innerHTML = card('<p>Un attimo — leggo posizione e meteo…</p>');
   try {
     const g = await getPosition();
-    const pos = snap(g.lat, g.lon);
+    let pos = snap(g.lat, g.lon);
     if (!pos || pos.dist > 3000) { c.innerHTML = card('<h3>Sei lontana dal cammino</h3><p class="small">Ti vedo a ' + (pos ? (pos.dist / 1000).toFixed(1) : '?') + ' km dalla traccia. Giorno di riposo o trasferimento? Nessun problema — ripremi Parto quando sei sul percorso.</p>', 'warn'); return; }
-    S.lastPos = { ...pos, t: now().toISOString() };
     const today = todayStr();
+    const tonight = (S.setup.nights || []).find(n => n.date === today);
+    /* ai capi condivisi (Saint-Jean, Santiago…) i segmenti si toccano: se il letto di stasera
+       è su un altro segmento raggiungibile da qui, il piano nasce su QUEL segmento */
+    if (tonight && tonight.seg && tonight.seg !== pos.seg && DATA.track[tonight.seg]) {
+      const alt = snapSeg(tonight.seg, g.lat, g.lon);
+      if (alt && alt.dist < 3000 && alt.dist < pos.dist + 800) pos = alt;
+    }
+    S.lastPos = { ...pos, t: now().toISOString() };
     let day = S.days.find(d => d.date === today);
     if (!day) { day = { date: today, km: 0 }; S.days.push(day); }
     if (!day.start) day.start = { t: now().toISOString(), seg: pos.seg, km: pos.km };
-    const tonight = (S.setup.nights || []).find(n => n.date === today);
-    const targetKm = tonight && tonight.seg === pos.seg ? tonight.km : null;
+    const targetKm = tonight && tonight.seg === pos.seg && Number.isFinite(tonight.km) && tonight.km > pos.km + 0.2 ? tonight.km : null;
     const pace = paceKmh();
     const samples = buildSamples(pos.seg, pos.km, pace, targetKm);
     let wx = null;
@@ -439,7 +483,17 @@ function buildPlanModel(pos, wx, tonight, pace) {
   return {
     t: now().toISOString(), seg: pos.seg, km: pos.km, phrase, milestone: !!mile,
     wx: wx ? { rows: wx.rows.map(r => ({ km: r.km, label: r.label, etaH: r.eta.getHours() + ':' + String(r.eta.getMinutes()).padStart(2, '0'), temp: r.temp, prob: r.prob, code: r.code, wind: r.wind })), sunrise: wx.sunrise, sunset: wx.sunset } : null,
-    tonight: tonight ? { name: tonight.name, place: tonight.place, kmLeft: tonight.seg === pos.seg ? Math.max(0, tonight.km - pos.km) : null, dplus: tonight.seg === pos.seg ? dplusBetween(pos.seg, pos.km, tonight.km) : null, note: tonight.note || '' } : null,
+    tonight: tonight ? (() => {
+      let kmLeft = null, dplus = null;
+      if (tonight.seg === pos.seg && Number.isFinite(tonight.km)) { kmLeft = Math.max(0, tonight.km - pos.km); dplus = dplusBetween(pos.seg, pos.km, tonight.km); }
+      else if (pos.seg === 'valcarlos' && tonight.seg === 'frances' && tonight.km >= FR_RONCES - 1.5) {
+        /* variante bassa con letto prenotato sul Francese (Roncisvalle): si somma il residuo dei due segmenti */
+        const rest = DATA.track.valcarlos.km_total - pos.km;
+        kmLeft = Math.max(0, rest + (tonight.km - FR_RONCES));
+        dplus = dplusBetween('valcarlos', pos.km, 1e9) + dplusBetween('frances', FR_RONCES, Math.max(FR_RONCES, tonight.km));
+      }
+      return { name: tonight.name, place: tonight.place, kmLeft, dplus, note: tonight.note || '' };
+    })() : null,
     alerts: activeAlerts(pos.seg, pos.km, 26).map(a => ({ level: a.level, title: a.title, body: a.body })),
     rib: ribbon(pos.seg, pos.km, 26),
     santiago: kmToSantiago(pos.seg, pos.km), fisterra: kmToFisterra(pos.seg, pos.km), pace
@@ -473,6 +527,7 @@ async function flowDormo() {
     const g = await getPosition();
     const pos = snap(g.lat, g.lon);
     if (!pos || pos.dist > 3000) { c.innerHTML = card('<p class="small">Sei lontana dalla traccia — il consiglio funziona in cammino.</p>', 'warn'); return; }
+    S.lastPos = { ...pos, t: now().toISOString() };
     const tonight = (S.setup.nights || []).find(n => n.date === todayStr());
     let wx = null; const pace = paceKmh();
     try { wx = await fetchWeather(buildSamples(pos.seg, pos.km, pace)); } catch (e) {}
@@ -497,6 +552,7 @@ async function flowDormo() {
       h += '<div class="act"><a href="' + gm + '" target="_blank" rel="noopener">Mappa</a><a href="' + bk + '" target="_blank" rel="noopener">Booking</a></div></div>';
       c.append(el(h));
     }
+    if (adv.beyond && adv.beyond.length && adv.options.length) c.append(el(card('<p class="small">Più avanti, oltre il raggio di oggi — ' + adv.beyond.map(b => esc(b.name) + ' (' + b.dist.toFixed(0) + ' km)').join(' · ') + '</p>')));
     c.append(el(card('<p class="small">Ricorda — i municipali non si prenotano (fila, credencial, contanti), i privati sì (telefono, WhatsApp, Booking). Alle 18 pensa a domani sera.</p>')));
   } catch (e) { c.innerHTML = card('<p class="small">' + esc(e.message) + '</p>', 'warn'); }
 }
@@ -506,13 +562,18 @@ async function flowFine() {
   try {
     const g = await getPosition();
     const pos = snap(g.lat, g.lon);
+    if (pos && pos.dist <= 3000) S.lastPos = { ...pos, t: now().toISOString() };
     const today = todayStr();
     let day = S.days.find(d => d.date === today);
+    if (!day) {
+      /* fine tappa dopo mezzanotte: se ieri c'è una giornata aperta, si chiude quella */
+      const last = S.days[S.days.length - 1];
+      const yest = new Date(now()); yest.setDate(yest.getDate() - 1);
+      if (last && last.date === todayStr(yest) && last.start && !last.end && now().getHours() < 4) day = last;
+    }
     if (!day) { day = { date: today, km: 0 }; S.days.push(day); }
     day.end = { t: now().toISOString(), seg: pos ? pos.seg : null, km: pos ? pos.km : null };
-    if (pos && day.start && day.start.seg === pos.seg) day.km = Math.max(0, pos.km - day.start.km);
-    else if (pos && day.start && day.start.seg === 'valcarlos' && pos.seg === 'frances') day.km = (DATA.track.valcarlos.km_total - day.start.km) + Math.max(0, pos.km - FR_RONCES);
-    else if (!day.start && pos) { day.km = day.km || 0; }
+    if (pos && day.start) day.km = walkedBetween(day.start.seg, day.start.km, pos.seg, pos.km);
     day.sleptAt = nearLocName(pos ? pos.seg : 'frances', pos ? pos.km : 0);
     saveState();
     const mile = pos ? milestoneHit(pos.seg, pos.km) : null;
@@ -523,10 +584,12 @@ async function flowFine() {
     const done = S.days.reduce((a, d) => a + (d.km || 0), 0);
     let h = '<h2>Tappa ' + S.days.length + ' chiusa</h2><div class="stat-row">' + stat(day.km.toFixed(1) + ' km', 'oggi') + stat(done.toFixed(0) + ' km', 'totali') + stat(dailyKmMedian().toFixed(0) + ' km', 'tua media') + '</div>';
     c.append(el(card(h)));
-    if (pos) {
-      const pj1 = projezione(kmToSantiago(pos.seg, pos.km));
+    if (pos && kmToFisterra(pos.seg, pos.km) > 1) {
+      const sdc = kmToSantiago(pos.seg, pos.km);
+      const pj1 = projezione(sdc);
       const pj2 = projezione(kmToFisterra(pos.seg, pos.km));
-      c.append(el(card('<h3>Di questo passo</h3><p>Santiago tra <b>' + fmtDate(pj1.from) + '</b> e <b>' + fmtDate(pj1.to) + '</b><br>L’oceano a Fisterra tra <b>' + fmtDate(pj2.from) + '</b> e <b>' + fmtDate(pj2.to) + '</b></p><p class="small">Basata sulla tua media reale di ' + pj1.daily.toFixed(0) + ' km al giorno — si aggiusta da sola giorno dopo giorno.</p>')));
+      let ph = sdc > 1 ? 'Santiago tra <b>' + fmtDate(pj1.from) + '</b> e <b>' + fmtDate(pj1.to) + '</b><br>' : '';
+      c.append(el(card('<h3>Di questo passo</h3><p>' + ph + 'L’oceano a Fisterra tra <b>' + fmtDate(pj2.from) + '</b> e <b>' + fmtDate(pj2.to) + '</b></p><p class="small">Basata sulla tua media reale di ' + pj2.daily.toFixed(0) + ' km al giorno — si aggiusta da sola giorno dopo giorno.</p>')));
     }
     /* posto spoglio? l'alert cibo scatta anche a fine tappa, come rete di sicurezza */
     if (DATA.loc && pos) {
@@ -588,6 +651,13 @@ function viewSetup() {
     try {
       const j = JSON.parse($('#setupTxt').value);
       if (!j.profile || !j.profile.start) throw new Error('manca profile.start');
+      const isoRe = /^\d{4}-\d{2}-\d{2}$/;
+      if (!isoRe.test(j.profile.start)) throw new Error('profile.start deve essere AAAA-MM-GG (es. 2026-09-12)');
+      for (const n of (j.nights || [])) {
+        if (!isoRe.test(n.date || '')) throw new Error('notte con data non AAAA-MM-GG (' + (n.date || '?') + ')');
+        if (n.seg != null && !DATA.track[n.seg]) throw new Error('notte ' + n.date + ' con seg sconosciuto "' + n.seg + '"');
+        if (n.seg != null && !Number.isFinite(n.km)) throw new Error('notte ' + n.date + ' ha seg ma manca km');
+      }
       S.setup = j; saveState();
       $('#setupMsg').textContent = 'Salvato! ✅'; TAB = 'oggi'; setTimeout(render, 400);
     } catch (e) { $('#setupMsg').textContent = 'File non valido — ' + e.message; }
