@@ -226,10 +226,29 @@ function ribbon(seg, km, horizon) {
     if (L.ph) svc.push('💊'); if (L.atm) svc.push('🏧'); if (L.sl) svc.push('🛏' + L.sl);
     rows.push({ km: L.km, ico: L.place === 'city' || L.place === 'town' ? '🏘' : '🏡', main: L.name, sub: svc.join('  ') || 'nessun servizio noto', loc: true });
   }
-  if (DATA.pois) for (const p of DATA.pois) {
-    if (p.seg !== seg || p.km < km - 0.1 || p.km > km + horizon) continue;
-    if (p.t === 'water' || p.t === 'pharmacy') {
-      rows.push({ km: p.km, ico: ICONS[p.t], main: p.n || (p.t === 'water' ? 'Fontana' : 'Farmacia'), sub: p.np ? 'acqua non garantita' : '', dim: !!p.np });
+  if (DATA.pois) {
+    /* fontane raggruppate quando sono vicine (stesso km circa) — regola di Andrea */
+    const waters = DATA.pois.filter(p => p.seg === seg && p.t === 'water' && p.km >= km - 0.1 && p.km <= km + horizon);
+    let i = 0;
+    while (i < waters.length) {
+      let j = i;
+      while (j + 1 < waters.length && waters[j + 1].km - waters[i].km <= 0.6) j++;
+      const grp = waters.slice(i, j + 1);
+      if (grp.length === 1) {
+        const p = grp[0];
+        rows.push({ km: p.km, ico: '💧', main: p.n || 'Fontana', sub: p.np ? 'acqua non garantita' : '', dim: !!p.np });
+      } else {
+        const np = grp.filter(p => p.np).length;
+        const span = grp[grp.length - 1].km - grp[0].km;
+        let sub = span > 0.05 ? 'nell’arco di ' + (span * 1000).toFixed(0) + ' m' : '';
+        if (np) sub += (sub ? ' · ' : '') + (np === grp.length ? 'acqua non garantita' : np + ' non garantite');
+        rows.push({ km: grp[0].km, ico: '💧', main: grp.length + ' fontane', sub, dim: np === grp.length });
+      }
+      i = j + 1;
+    }
+    for (const p of DATA.pois) {
+      if (p.seg !== seg || p.km < km - 0.1 || p.km > km + horizon) continue;
+      if (p.t === 'pharmacy') rows.push({ km: p.km, ico: '💊', main: p.n || 'Farmacia', sub: '' });
     }
   }
   if (DATA.sellos) for (const sl of DATA.sellos.famosi) {
@@ -281,16 +300,26 @@ function adviseSleep(pos, wx) {
       if (!late) { tone = pressure >= 2 ? 'warn' : 'ok'; advice = 'Arrivi in orario buono per trovare posto' + (pressure ? ' — ma oggi c’è più pressione del solito (prenota se puoi)' : '') + '.'; }
       else { tone = 'crit'; advice = 'A quest’ora d’arrivo rischi di trovare pieno — prenota prima di partire da qui, oppure scegli un’altra meta.'; }
     }
-    out.options.push({ name: L.name, km: L.km, dist: L.km - km, eta: etaStr, cls, sl: L.sl || 0, alb: L.alb || 0, gapNext: gapNext, tone, advice, pressure });
+    out.options.push({ name: L.name, km: L.km, lat: L.lat, lon: L.lon, dist: L.km - km, eta: etaStr, cls, sl: L.sl || 0, alb: L.alb || 0, gapNext: gapNext, tone, advice, pressure });
   }
   /* Santiago geometricamente vive sull'Epilogo al km 0 — se è a portata, è sempre un'opzione */
   const toSdc = kmToSantiago(seg, km);
   if (seg === 'frances' && toSdc > 0.3 && toSdc <= reach && !out.options.some(o => /santiago/i.test(o.name))) {
     const eta = new Date(now().getTime() + toSdc / pace * 3600000);
-    out.options.push({ name: 'Santiago de Compostela', km: km + toSdc, dist: toSdc, eta: eta.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }), cls: 'città', sl: 46, alb: 20, gapNext: 0, tone: 'ok', advice: 'Sei arrivata — qualcosa si trova sempre. E prima di cercare il letto, passa dall’Oficina del Peregrino per la Compostela.', pressure: 0 });
+    out.options.push({ name: 'Santiago de Compostela', km: km + toSdc, lat: 42.8806, lon: -8.5446, dist: toSdc, eta: eta.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }), cls: 'città', sl: 46, alb: 20, gapNext: 0, tone: 'ok', advice: 'Sei arrivata — qualcosa si trova sempre. E prima di cercare il letto, passa dall’Oficina del Peregrino per la Compostela.', pressure: 0 });
   }
   out.beyond = sleepLocs.filter(L => L.km > km + reach).slice(0, 2).map(L => ({ name: L.name, dist: L.km - km }));
   return out;
+}
+
+/* ===================== affiliazione Stay22 (Booking con tracciamento olgacamino) ===================== */
+/* AID aziendale — regola dei README TT/NC4K: è quello che incassa le commissioni, non cambiarlo */
+const STAY22_AID = 'adventurelabsrl';
+function stay22Booking(lat, lon) {
+  const d = now(); const dom = new Date(d); dom.setDate(dom.getDate() + 1);
+  return 'https://www.stay22.com/allez/booking?aid=' + STAY22_AID + '&campaign=olgacamino' +
+    '&lat=' + Number(lat).toFixed(5) + '&lng=' + Number(lon).toFixed(5) +
+    '&checkin=' + todayStr(d) + '&checkout=' + todayStr(dom) + '&adults=1';
 }
 
 /* ===================== helper UI ===================== */
@@ -311,8 +340,9 @@ function render() { const v = { oggi: viewOggi, mappa: viewMappa, diario: viewDi
 let MAPJS = false;
 function viewMappa() {
   const m = $('#main'); m.innerHTML = '';
-  m.append(el('<div class="card"><h2>La mappa del cammino</h2><p class="small">Per studiare il percorso — accendi e spegni i livelli. Serve rete per lo sfondo.</p><div class="chips" id="mapChips"></div></div>'));
+  m.append(el('<div class="card"><h2>La mappa del cammino</h2><p class="small">Per studiare il percorso — accendi e spegni i livelli. Serve rete per lo sfondo. Trascina il dito sull’altimetria e il punto giallo si muove sulla mappa.</p><div class="chips" id="mapChips"></div></div>'));
   m.append(el('<div id="map"></div>'));
+  m.append(el('<div class="card mt"><h3>Altimetria</h3><div class="chips" id="segSel" style="margin-bottom:8px"></div><canvas id="prof"></canvas><p class="small" id="profOut" style="margin:8px 0 0"></p></div>'));
   const go = () => { if (window.bcoInitMap) window.bcoInitMap(); };
   if (window.L && MAPJS) return go();
   const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'assets/vendor/leaflet.css'; document.head.append(css);
@@ -445,7 +475,7 @@ async function flowDormo() {
     for (const o of adv.options) {
       const pill = o.cls === 'città' ? '<span class="pill ok">città</span>' : o.cls === 'medio' ? '<span class="pill info">paese</span>' : '<span class="pill warn">paesino</span>';
       const gm = 'https://www.google.com/maps/search/' + encodeURIComponent('albergue ' + o.name);
-      const bk = 'https://www.booking.com/searchresults.it.html?ss=' + encodeURIComponent(o.name + ' Spagna');
+      const bk = stay22Booking(o.lat, o.lon);
       let h = '<div class="opt"><div class="head">' + pill + '<b>' + esc(o.name) + '</b><span class="eta">' + o.dist.toFixed(1) + ' km · ~' + o.eta + '</span></div>';
       h += '<div class="why">' + (o.sl ? (o.sl === 1 ? '1 struttura per dormire' : o.sl + ' strutture per dormire') + (o.alb ? ' (di cui ' + o.alb + ' albergue)' : '') : 'letti non censiti') + (o.gapNext > 0.5 ? ' · dopo, il prossimo letto è a ' + o.gapNext.toFixed(0) + ' km' : '') + (o.pressure ? ' · pressione +' + o.pressure : '') + '</div>';
       h += '<p class="small mt" style="margin-bottom:0">' + esc(o.advice) + '</p>';

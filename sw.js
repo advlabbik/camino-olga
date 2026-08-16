@@ -1,5 +1,5 @@
 /* Buen Camino Olga — service worker: shell+dati offline, meteo network-first */
-const V = 'bco-v2';
+const V = 'bco-v4';
 const SHELL = ['./', 'index.html', 'assets/style.css', 'assets/app.js', 'assets/map.js', 'assets/icon.svg',
   'assets/vendor/leaflet.js', 'assets/vendor/leaflet.css', 'manifest.webmanifest',
   'data/track.json', 'data/phrases.json', 'data/alerts.json', 'data/sellos.json', 'data/status.json', 'data/pois.json', 'data/localities.json'];
@@ -19,10 +19,11 @@ self.addEventListener('fetch', e => {
     return;
   }
   if (url.origin === location.origin) {
-    /* shell e dati: cache prima, aggiorna in background */
-    e.respondWith(caches.match(e.request).then(hit => {
-      const net = fetch(e.request).then(r => { if (r.ok) { const cp = r.clone(); caches.open(V).then(c => c.put(e.request, cp)); } return r; }).catch(() => hit);
-      return hit || net;
-    }));
+    /* NETWORK-FIRST, regola di casa (tg-guida): chi ha rete vede sempre l'ultima
+       versione, la cache è la rete di salvataggio quando il segnale manca */
+    e.respondWith(fetch(e.request).then(r => {
+      if (r.ok) { const cp = r.clone(); caches.open(V).then(c => c.put(e.request, cp)); }
+      return r;
+    }).catch(() => caches.match(e.request).then(hit => hit || caches.match('index.html'))));
   }
 });
