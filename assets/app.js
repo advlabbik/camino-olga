@@ -21,8 +21,10 @@ async function loadData() {
   DATA.phrases = await get('data/phrases.json');
   DATA.alerts = (await get('data/alerts.json', true)) || [];
   DATA.sellos = await get('data/sellos.json', true);
-  DATA.pois = await get('data/pois.json', true);
-  DATA.loc = await get('data/localities.json', true);
+  const pj = await get('data/pois.json', true);
+  DATA.pois = pj ? (pj.pois || pj) : null;
+  const lj = await get('data/localities.json', true);
+  DATA.loc = lj ? (lj.localities || lj) : null;
   DATA.status = await get('data/status.json', true);
 }
 
@@ -246,7 +248,8 @@ function classify(L) {
 function adviseSleep(pos, wx) {
   const { seg, km } = pos;
   const pace = paceKmh();
-  const sunset = wx && wx.sunsetDate ? wx.sunsetDate : (() => { const d = now(); d.setHours(20, 10, 0, 0); return d; })();
+  /* usa l'ORA del tramonto sulla data di oggi (l'API può rispondere con un'altra data) */
+  const sunset = (() => { const d = now(); const [hh, mm] = (wx && wx.sunset ? wx.sunset : '20:10').split(':').map(Number); d.setHours(hh, mm, 0, 0); return d; })();
   const hoursLeft = Math.max(0, (sunset - now()) / 3600000 - 1); /* margine 1h */
   const reach = Math.min(28, Math.max(2, pace * hoursLeft));
   const segLen = DATA.track[seg].km_total;
@@ -277,6 +280,12 @@ function adviseSleep(pos, wx) {
       else { tone = 'crit'; advice = 'A quest’ora d’arrivo rischi di trovare pieno — prenota prima di partire da qui, oppure scegli un’altra meta.'; }
     }
     out.options.push({ name: L.name, km: L.km, dist: L.km - km, eta: etaStr, cls, sl: L.sl || 0, alb: L.alb || 0, gapNext: gapNext, tone, advice, pressure });
+  }
+  /* Santiago geometricamente vive sull'Epilogo al km 0 — se è a portata, è sempre un'opzione */
+  const toSdc = kmToSantiago(seg, km);
+  if (seg === 'frances' && toSdc > 0.3 && toSdc <= reach && !out.options.some(o => /santiago/i.test(o.name))) {
+    const eta = new Date(now().getTime() + toSdc / pace * 3600000);
+    out.options.push({ name: 'Santiago de Compostela', km: km + toSdc, dist: toSdc, eta: eta.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }), cls: 'città', sl: 46, alb: 20, gapNext: 0, tone: 'ok', advice: 'Sei arrivata — qualcosa si trova sempre. E prima di cercare il letto, passa dall’Oficina del Peregrino per la Compostela.', pressure: 0 });
   }
   out.beyond = sleepLocs.filter(L => L.km > km + reach).slice(0, 2).map(L => ({ name: L.name, dist: L.km - km }));
   return out;
@@ -423,7 +432,7 @@ async function flowDormo() {
       const gm = 'https://www.google.com/maps/search/' + encodeURIComponent('albergue ' + o.name);
       const bk = 'https://www.booking.com/searchresults.it.html?ss=' + encodeURIComponent(o.name + ' Spagna');
       let h = '<div class="opt"><div class="head">' + pill + '<b>' + esc(o.name) + '</b><span class="eta">' + o.dist.toFixed(1) + ' km · ~' + o.eta + '</span></div>';
-      h += '<div class="why">' + (o.sl ? o.sl + ' strutture per dormire' + (o.alb ? ' (di cui ' + o.alb + ' albergue)' : '') : 'letti non censiti') + ' · dopo, il prossimo letto è a ' + o.gapNext.toFixed(0) + ' km' + (o.pressure ? ' · pressione +' + o.pressure : '') + '</div>';
+      h += '<div class="why">' + (o.sl ? (o.sl === 1 ? '1 struttura per dormire' : o.sl + ' strutture per dormire') + (o.alb ? ' (di cui ' + o.alb + ' albergue)' : '') : 'letti non censiti') + (o.gapNext > 0.5 ? ' · dopo, il prossimo letto è a ' + o.gapNext.toFixed(0) + ' km' : '') + (o.pressure ? ' · pressione +' + o.pressure : '') + '</div>';
       h += '<p class="small mt" style="margin-bottom:0">' + esc(o.advice) + '</p>';
       h += '<div class="act"><a href="' + gm + '" target="_blank" rel="noopener">Mappa</a><a href="' + bk + '" target="_blank" rel="noopener">Booking</a></div></div>';
       c.append(el(h));

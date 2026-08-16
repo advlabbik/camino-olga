@@ -33,7 +33,11 @@ data/localities.json — place=city|town|village|hamlet nodes within 1500 m:
     FINAL pois.json records: a POI belongs to the locality when it is on the
     same segment within km ±0.8, OR within 1000 m radius (union):
     w water, f food, s shop, ph pharmacy, atm, sl sleep, alb albergue-flagged.
-  Places closer than 700 m keep only the higher rank (city>town>village>hamlet).
+  A place within 700 m of a higher-ranked place is dropped
+  (city>town>village>hamlet). Equal-rank pairs: hamlet-hamlet pairs collapse
+  too (Galician farm clusters, keep the more populous), but village-and-above
+  pairs are both kept (Sansol and Torres del Río are distinct guidebook stops
+  ~650 m apart).
 
 Usage (any cwd):
     python C:/CoworkClaude/camino-olga/tools/build_pois.py
@@ -442,7 +446,8 @@ def build_localities(places, snap, pois):
     for c in cands:
         winner = None
         for k in kept:
-            if hav((c["lat"], c["lon"]), (k["lat"], k["lon"])) <= PLACE_MERGE_M:
+            if ((k["rank"] > c["rank"] or (k["rank"] == c["rank"] == RANK["hamlet"]))
+                    and hav((c["lat"], c["lon"]), (k["lat"], k["lon"])) <= PLACE_MERGE_M):
                 winner = k
                 break
         if winner is None:
@@ -451,7 +456,9 @@ def build_localities(places, snap, pois):
             merged.append("%s (%s) -> %s (%s)"
                           % (c["name"], c["place"], winner["name"], winner["place"]))
     if merged:
-        rep("  merged %d places within %.0f m of a higher rank:" % (len(merged), PLACE_MERGE_M))
+        rep("  merged %d places within %.0f m of a higher rank (plus "
+            "hamlet-hamlet pairs; equal-rank villages+ both kept):"
+            % (len(merged), PLACE_MERGE_M))
         for m in merged:
             rep("    - %s" % m)
 
@@ -512,7 +519,7 @@ ALBERGUE_TOWNS_160 = [
     "muruzabal", "obanos", "puente la reina", "gares", "maneru", "cirauqui",
     "lorca", "villatuerta", "estella", "lizarra", "ayegui", "azqueta",
     "villamayor de monjardin", "los arcos", "sansol", "torres del rio",
-    "viana", "logrono",
+    "viana", "logrono", "huarte", "uharte", "zuriain",
 ]
 
 
@@ -550,11 +557,25 @@ def validate(segs, pois, locs, stats, dropped):
         if per_seg.get(s):
             rep("  %-20s %4d   %s" % (s, per_seg[s], dict(sorted(by_type[s].items()))))
     nf = per_seg.get("frances", 0)
+    nf_core = sum(1 for L in locs if L["seg"] == "frances" and L["place"] != "hamlet")
     ok = 120 <= nf <= 260
     rep("frances locality count = %d (expected roughly 120-260) -> %s"
         % (nf, "OK" if ok else "OUT OF RANGE"))
+    rep("  city/town/village only: %d — the overshoot is place=hamlet density" % nf_core)
+    bins = {}
+    for L in locs:
+        if L["seg"] == "frances":
+            bins.setdefault(int(L["km"] // 100) * 100, Counter())[L["place"]] += 1
+    for b in sorted(bins):
+        rep("  km %3d-%3d: %3d  %s" % (b, b + 100, sum(bins[b].values()),
+                                       dict(sorted(bins[b].items()))))
+    rep("  note: in Galicia (km ~600-755) and the French Basque start OSM maps "
+        "every settled 'lugar'/farm cluster as place=hamlet; the density is "
+        "real OSM data, not corridor leakage. Filter by place rank or service "
+        "counts in the app if a coarser list is wanted.")
     if not ok:
-        anomalies.append("frances locality count %d outside 120-260" % nf)
+        anomalies.append("frances locality count %d outside 120-260 (%d without "
+                         "hamlets) — Galician place=hamlet density" % (nf, nf_core))
 
     # -- expected towns table -------------------------------------------------
     fr_end = segs["frances"]["km_total"]
@@ -571,13 +592,25 @@ def validate(segs, pois, locs, stats, dropped):
             anomalies.append("expected town missing: %s" % wanted)
             continue
         delta = L["km"] - expv
-        mark = "" if abs(delta) <= 8 and L["seg"] == "frances" else "  <-- CHECK"
-        if mark:
+        if exp is None:
+            # Santiago: frances end and epilogo km 0 are the same cathedral
+            # square — either assignment confirms the terminus.
+            good = ((L["seg"] == "frances" and L["km"] >= fr_end - 3.0)
+                    or (L["seg"] == "epilogo_fisterra" and L["km"] <= 1.0))
+            mark = "" if good else "  <-- CHECK"
+        else:
+            good = abs(delta) <= 8 and L["seg"] == "frances"
+            mark = "" if good else "  <-- CHECK"
+        if not good:
             anomalies.append("%s found at %s km %.1f (expected ~%s)"
                              % (wanted, L["seg"], L["km"], expv))
         rep("  %-26s %8.0f %8.2f %+7.2f  %-8s %-19s %d/%d%s"
             % (L["name"][:26], expv, L["km"], delta, L["seg"],
                "%s/%s" % (L["place"], L.get("pop", "-")), L["sl"], L["alb"], mark))
+        if exp is None and L["seg"] == "epilogo_fisterra" and L["km"] <= 1.0:
+            rep("    (Santiago place node is 12 m from the epilogo line and 158 m "
+                "from the frances end point — nearest-segment rule puts it on "
+                "epilogo_fisterra km 0.00, i.e. the frances km %.2f terminus)" % fr_end)
 
     # -- dry gap Carrión -> Calzadilla de la Cueza ----------------------------
     rep("-" * 78)
@@ -653,6 +686,10 @@ def validate(segs, pois, locs, stats, dropped):
     others = [L["name"] for L in zero if L not in known]
     if others:
         rep("  (remaining zero-service localities, plausible: %s)" % ", ".join(others))
+    rep("  note: sl=0 can also mean the settlement core sits 400-1500 m off the "
+        "line — localities use a 1500 m corridor but POIs only 400 m, so "
+        "off-track suburbs (e.g. Huarte, Zizur Mayor, Barañáin) show zeros by "
+        "construction, not necessarily as OSM gaps.")
 
     # -- classification stats -------------------------------------------------
     rep("-" * 78)
