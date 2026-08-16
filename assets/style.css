@@ -165,8 +165,14 @@ textarea {
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { font-size: 12.5px; font-weight: 700; padding: 6px 11px; border-radius: 99px; border: 1px solid var(--line); background: var(--panel2); color: var(--muted); cursor: pointer; }
 .chip.on { background: var(--blue); color: #fff; border-color: var(--blue); }
-.sello-ico { font-size: 19px; line-height: 24px; text-align: center; text-shadow: 0 1px 2px rgba(0,0,0,.4); }
+.sello-ico { font-size: 21px; line-height: 28px; text-align: center; text-shadow: 0 1px 2px rgba(0,0,0,.4); }
+.clu span { display: block; border-radius: 99px; color: #fff; text-align: center; font: 800 13px/1 -apple-system, system-ui, 'Segoe UI', sans-serif; border: 2.5px solid #fff; box-shadow: 0 1px 5px rgba(0,0,0,.35); }
 .leaflet-popup-content { color: #222; font: 13.5px/1.45 -apple-system, system-ui, 'Segoe UI', sans-serif; }
+
+.foodnote { font-weight: 650; }
+.foodnote.crit { color: var(--crit); }
+.foodnote.warn { color: var(--warn); }
+.foodnote.info { color: var(--muted); font-weight: 400; }
 
 .foot { text-align: center; color: var(--muted); font-size: 12px; margin: 18px 0 6px; }
 .hidden { display: none !important; }

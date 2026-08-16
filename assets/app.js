@@ -292,6 +292,20 @@ function adviseSleep(pos, wx) {
     if (rainPm) pressure++;
     if (seg === 'frances' && km > 640) pressure++;
     const etaStr = eta.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    /* cibo — se il posto è spoglio, prenotare i pasti INSIEME al letto (regola di Andrea) */
+    let food = null;
+    {
+      const fCnt = L.f || 0, sCnt = L.s || 0;
+      let nextFood = null;
+      if (DATA.pois) for (const p of DATA.pois) {
+        if (p.seg !== seg || (p.t !== 'food' && p.t !== 'shop')) continue;
+        if (p.km > L.km + 0.4 && (nextFood == null || p.km < nextFood)) nextFood = p.km;
+      }
+      const gapMeal = nextFood != null ? nextFood - L.km : null;
+      if (!fCnt && !sCnt) food = { level: 'crit', text: 'Qui non c’è niente da mangiare — quando chiami per il letto, prenota anche cena, colazione e panini da portare via' + (gapMeal != null && gapMeal > 4 ? ' (il primo cibo domattina è a ' + gapMeal.toFixed(0) + ' km)' : '') + (sat ? '. E domani è domenica' : '') };
+      else if (!sCnt) food = { level: 'warn', text: 'Si cena ma non c’è negozio — chiedi al gestore colazione e panini per domani' + (sat ? ' (domani è domenica, negozi chiusi)' : '') };
+      else if (sat) food = { level: 'info', text: 'Domani è domenica — compra stasera il pranzo di domani' };
+    }
     let advice, tone;
     if (cls === 'città') { tone = 'ok'; advice = 'Qualcosa si trova sempre — al massimo paghi una pensione. Se vuoi la camera privata, prenota appena decidi.'; }
     else {
@@ -300,7 +314,7 @@ function adviseSleep(pos, wx) {
       if (!late) { tone = pressure >= 2 ? 'warn' : 'ok'; advice = 'Arrivi in orario buono per trovare posto' + (pressure ? ' — ma oggi c’è più pressione del solito (prenota se puoi)' : '') + '.'; }
       else { tone = 'crit'; advice = 'A quest’ora d’arrivo rischi di trovare pieno — prenota prima di partire da qui, oppure scegli un’altra meta.'; }
     }
-    out.options.push({ name: L.name, km: L.km, lat: L.lat, lon: L.lon, dist: L.km - km, eta: etaStr, cls, sl: L.sl || 0, alb: L.alb || 0, gapNext: gapNext, tone, advice, pressure });
+    out.options.push({ name: L.name, km: L.km, lat: L.lat, lon: L.lon, dist: L.km - km, eta: etaStr, cls, sl: L.sl || 0, alb: L.alb || 0, gapNext: gapNext, tone, advice, pressure, food });
   }
   /* Santiago geometricamente vive sull'Epilogo al km 0 — se è a portata, è sempre un'opzione */
   const toSdc = kmToSantiago(seg, km);
@@ -340,7 +354,7 @@ function render() { const v = { oggi: viewOggi, mappa: viewMappa, diario: viewDi
 let MAPJS = false;
 function viewMappa() {
   const m = $('#main'); m.innerHTML = '';
-  m.append(el('<div class="card"><h2>La mappa del cammino</h2><p class="small">Per studiare il percorso — accendi e spegni i livelli. Serve rete per lo sfondo. Trascina il dito sull’altimetria e il punto giallo si muove sulla mappa.</p><div class="chips" id="mapChips"></div></div>'));
+  m.append(el('<div class="card"><h2>La mappa del cammino</h2><p class="small">Per studiare il percorso — accendi e spegni i livelli. Serve rete per lo sfondo. Trascina il dito sull’altimetria e il punto giallo si muove sulla mappa.</p><div class="chips" id="mapChips"></div><p class="age" id="poiCount" style="margin:8px 0 0"></p></div>'));
   m.append(el('<div id="map"></div>'));
   m.append(el('<div class="card mt"><h3>Altimetria</h3><div class="chips" id="segSel" style="margin-bottom:8px"></div><canvas id="prof"></canvas><p class="small" id="profOut" style="margin:8px 0 0"></p></div>'));
   const go = () => { if (window.bcoInitMap) window.bcoInitMap(); };
@@ -479,6 +493,7 @@ async function flowDormo() {
       let h = '<div class="opt"><div class="head">' + pill + '<b>' + esc(o.name) + '</b><span class="eta">' + o.dist.toFixed(1) + ' km · ~' + o.eta + '</span></div>';
       h += '<div class="why">' + (o.sl ? (o.sl === 1 ? '1 struttura per dormire' : o.sl + ' strutture per dormire') + (o.alb ? ' (di cui ' + o.alb + ' albergue)' : '') : 'letti non censiti') + (o.gapNext > 0.5 ? ' · dopo, il prossimo letto è a ' + o.gapNext.toFixed(0) + ' km' : '') + (o.pressure ? ' · pressione +' + o.pressure : '') + '</div>';
       h += '<p class="small mt" style="margin-bottom:0">' + esc(o.advice) + '</p>';
+      if (o.food) h += '<p class="small foodnote ' + o.food.level + '">🍽 ' + esc(o.food.text) + '</p>';
       h += '<div class="act"><a href="' + gm + '" target="_blank" rel="noopener">Mappa</a><a href="' + bk + '" target="_blank" rel="noopener">Booking</a></div></div>';
       c.append(el(h));
     }
@@ -512,6 +527,15 @@ async function flowFine() {
       const pj1 = projezione(kmToSantiago(pos.seg, pos.km));
       const pj2 = projezione(kmToFisterra(pos.seg, pos.km));
       c.append(el(card('<h3>Di questo passo</h3><p>Santiago tra <b>' + fmtDate(pj1.from) + '</b> e <b>' + fmtDate(pj1.to) + '</b><br>L’oceano a Fisterra tra <b>' + fmtDate(pj2.from) + '</b> e <b>' + fmtDate(pj2.to) + '</b></p><p class="small">Basata sulla tua media reale di ' + pj1.daily.toFixed(0) + ' km al giorno — si aggiusta da sola giorno dopo giorno.</p>')));
+    }
+    /* posto spoglio? l'alert cibo scatta anche a fine tappa, come rete di sicurezza */
+    if (DATA.loc && pos) {
+      const nearL = DATA.loc.filter(Lx => Lx.seg === pos.seg && Math.abs(Lx.km - pos.km) < 1.2)
+        .sort((a, b) => Math.abs(a.km - pos.km) - Math.abs(b.km - pos.km))[0];
+      if (nearL && !(nearL.f || 0) && !(nearL.s || 0))
+        c.append(el(card('<h3>🍽 Qui non si mangia</h3><p class="small">A ' + esc(nearL.name) + ' non risultano bar, ristoranti né negozi. Se non l’hai già fatto, <b>prenota subito con la struttura cena, colazione e panini da portare via per domani</b> — dopo cena è tardi.</p>', 'crit')));
+      else if (nearL && !(nearL.s || 0))
+        c.append(el(card('<h3>🛒 Niente negozio qui</h3><p class="small">Si cena, ma domani non compri nulla — assicurati stasera colazione e panini per domani col gestore.</p>', 'warn')));
     }
     const tomorrow = new Date(now()); tomorrow.setDate(tomorrow.getDate() + 1);
     const tomBooking = (S.setup.nights || []).find(n => n.date === todayStr(tomorrow));
