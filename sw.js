@@ -1,6 +1,7 @@
 /* Buen Camino Olga — service worker: shell+dati offline, meteo network-first */
-const V = 'bco-v1';
-const SHELL = ['./', 'index.html', 'assets/style.css', 'assets/app.js', 'assets/icon.svg', 'manifest.webmanifest',
+const V = 'bco-v2';
+const SHELL = ['./', 'index.html', 'assets/style.css', 'assets/app.js', 'assets/map.js', 'assets/icon.svg',
+  'assets/vendor/leaflet.js', 'assets/vendor/leaflet.css', 'manifest.webmanifest',
   'data/track.json', 'data/phrases.json', 'data/alerts.json', 'data/sellos.json', 'data/status.json', 'data/pois.json', 'data/localities.json'];
 
 self.addEventListener('install', e => {

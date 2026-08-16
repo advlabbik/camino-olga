@@ -22,9 +22,11 @@ async function loadData() {
   DATA.alerts = (await get('data/alerts.json', true)) || [];
   DATA.sellos = await get('data/sellos.json', true);
   const pj = await get('data/pois.json', true);
-  DATA.pois = pj ? (pj.pois || pj) : null;
+  DATA.pois = pj ? (Array.isArray(pj) ? pj : pj.pois) : null;
   const lj = await get('data/localities.json', true);
-  DATA.loc = lj ? (lj.localities || lj) : null;
+  DATA.loc = lj ? (Array.isArray(lj) ? lj : lj.localities) : null;
+  if (!Array.isArray(DATA.pois)) DATA.pois = null;
+  if (!Array.isArray(DATA.loc)) DATA.loc = null;
   DATA.status = await get('data/status.json', true);
 }
 
@@ -304,7 +306,20 @@ function statusAge() {
 
 /* ===================== viste ===================== */
 let TAB = 'oggi';
-function render() { const v = { oggi: viewOggi, diario: viewDiario, info: viewInfo, setup: viewSetup }[TAB] || viewOggi; v(); markTabs(); }
+function render() { const v = { oggi: viewOggi, mappa: viewMappa, diario: viewDiario, info: viewInfo, setup: viewSetup }[TAB] || viewOggi; v(); markTabs(); }
+
+let MAPJS = false;
+function viewMappa() {
+  const m = $('#main'); m.innerHTML = '';
+  m.append(el('<div class="card"><h2>La mappa del cammino</h2><p class="small">Per studiare il percorso — accendi e spegni i livelli. Serve rete per lo sfondo.</p><div class="chips" id="mapChips"></div></div>'));
+  m.append(el('<div id="map"></div>'));
+  const go = () => { if (window.bcoInitMap) window.bcoInitMap(); };
+  if (window.L && MAPJS) return go();
+  const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'assets/vendor/leaflet.css'; document.head.append(css);
+  const s1 = document.createElement('script'); s1.src = 'assets/vendor/leaflet.js';
+  s1.onload = () => { const s2 = document.createElement('script'); s2.src = 'assets/map.js'; s2.onload = () => { MAPJS = true; go(); }; document.body.append(s2); };
+  document.body.append(s1);
+}
 function markTabs() { document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB)); }
 
 function viewOggi() {
