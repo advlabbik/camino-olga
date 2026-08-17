@@ -22,10 +22,19 @@
   },
   {
     "id": "discesa_lepoeder",
-    "seg": "frances", "km0": 19.5, "km1": 20.5,
-    "level": "attenzione",
-    "title": "Col de Lepoeder — scegli bene la discesa",
-    "body": "Da qui due discese per Roncisvalle. Bosco = ripida e scivolosa se bagnata. Con pioggia o gambe stanche prendi a destra per il Puerto de Ibañeta — più lunga ma dolce."
+    "seg": "frances", "km0": 18.0, "km1": 20.3,
+    "level": "critico",
+    "title": "La discesa su Roncisvalle — prendi quella dolce sull'asfalto",
+    "body": "In cima al Col de Lepoeder (1.430 m, il punto più alto di oggi) la tappa si decide. Le frecce gialle buttano a sinistra nel bosco — è la discesa ripida, 500 metri da perdere in nemmeno 4 km su roccia e radici, scivolosa se umida e la più traditrice di tutta la prima settimana. La variante dolce sull'asfalto costa un chilometro in più (20-30 minuti) e porta giù con pendenza regolare su fondo buono. Fortemente consigliata — poi la scelta è tua.",
+    "steps": [
+      "Riconosci il colle — la salita finisce, c'è il palo segnaletico e davanti a te, in basso, si vedono i tetti grigi dell'abbazia di Roncisvalle.",
+      "IGNORA le frecce gialle che scendono dritte nella faggeta.",
+      "Prendi la stradina ASFALTATA che scende sulla destra — è l'unica strada che passa al colle, impossibile confonderla.",
+      "Resta sull'asfalto per circa 3 km di tornanti dolci. Non tagliare per i sentierini che accorciano i tornanti, riportano sul ripido. Cammina sul lato sinistro, ogni tanto passa un'auto.",
+      "Arrivi al Puerto de Ibañeta (1.057 m) — lo riconosci dalla cappella moderna in pietra e dal monolite del monumento a Rolando, con lo spiazzo.",
+      "Dalla cappella parte il sentiero segnato per Roncisvalle-Orreaga — 1,5 km dolci nel bosco accanto alla strada, e sei al monastero."
+    ],
+    "coda": "Se scegli comunque il bosco — bastoncini fuori, passi corti, e con il bagnato pensaci due volte."
   },
   {
     "id": "discesa_zubiri",

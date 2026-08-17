@@ -2,7 +2,7 @@
    Rete-prima CON timeout: con segnale debole (lie-fi) la cache risponde entro ~3,5 s
    invece di aspettare minuti il timeout del browser. Install atomico: se anche un solo
    file del precache fallisce, l'aggiornamento viene rimandato e la cache buona resta. */
-const V = 'bco-v7';
+const V = 'bco-v8';
 const SHELL = ['./', 'index.html', 'assets/style.css', 'assets/app.js', 'assets/map.js', 'assets/icon.svg',
   'assets/icon-512.png',
   'assets/vendor/leaflet.js', 'assets/vendor/leaflet.css', 'manifest.webmanifest',

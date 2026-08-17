@@ -494,7 +494,7 @@ function buildPlanModel(pos, wx, tonight, pace) {
       }
       return { name: tonight.name, place: tonight.place, kmLeft, dplus, note: tonight.note || '' };
     })() : null,
-    alerts: activeAlerts(pos.seg, pos.km, 26).map(a => ({ level: a.level, title: a.title, body: a.body })),
+    alerts: activeAlerts(pos.seg, pos.km, 26).map(a => ({ level: a.level, title: a.title, body: a.body, steps: a.steps || null, coda: a.coda || null })),
     rib: ribbon(pos.seg, pos.km, 26),
     santiago: kmToSantiago(pos.seg, pos.km), fisterra: kmToFisterra(pos.seg, pos.km), pace
   };
@@ -506,7 +506,16 @@ function renderPlan(c, P, stale) {
   s += stat(P.santiago.toFixed(0) + ' km', 'a Santiago') + stat(P.fisterra.toFixed(0) + ' km', 'all’oceano') + '</div>';
   if (P.wx) s += '<p class="small mt">🌅 alba ' + P.wx.sunrise + ' · 🌇 tramonto ' + P.wx.sunset + '</p>';
   c.append(el(card('<h2>' + (stale ? 'Il piano di oggi' : 'La tua giornata') + '</h2>' + s)));
-  for (const a of P.alerts) c.append(el(card('<h3>' + (a.level === 'critico' ? '⚠️' : a.level === 'attenzione' ? '🔶' : 'ℹ️') + ' ' + esc(a.title) + '</h3><p class="small">' + esc(a.body) + '</p>', a.level === 'critico' ? 'crit' : a.level === 'attenzione' ? 'warn' : '')));
+  for (const a of P.alerts) {
+    let h = '<h3>' + (a.level === 'critico' ? '⚠️' : a.level === 'attenzione' ? '🔶' : 'ℹ️') + ' ' + esc(a.title) + '</h3><p class="small">' + esc(a.body) + '</p>';
+    if (a.steps && a.steps.length) {
+      h += '<ol class="passi">';
+      for (const s of a.steps) h += '<li>' + esc(s) + '</li>';
+      h += '</ol>';
+    }
+    if (a.coda) h += '<p class="small" style="font-style:italic">' + esc(a.coda) + '</p>';
+    c.append(el(card(h, a.level === 'critico' ? 'crit' : a.level === 'attenzione' ? 'warn' : '')));
+  }
   if (P.wx) {
     let w = '<h3>Meteo lungo la strada</h3>';
     for (const r of P.wx.rows) w += '<div class="wxrow"><span class="h">' + r.etaH + '</span><span>' + WMO(r.code) + '</span><span class="pl">' + esc(r.label) + '</span><span class="tp">' + r.temp + '°</span><span class="pr' + (r.prob >= 50 ? ' wet' : '') + '">☔ ' + r.prob + '%</span></div>';

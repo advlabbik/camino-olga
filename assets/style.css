@@ -169,6 +169,10 @@ textarea {
 .clu span { display: block; border-radius: 99px; color: #fff; text-align: center; font: 800 13px/1 -apple-system, system-ui, 'Segoe UI', sans-serif; border: 2.5px solid #fff; box-shadow: 0 1px 5px rgba(0,0,0,.35); }
 .leaflet-popup-content { color: #222; font: 13.5px/1.45 -apple-system, system-ui, 'Segoe UI', sans-serif; }
 
+ol.passi { margin: 6px 0 10px; padding-left: 20px; font-size: 14.5px; }
+ol.passi li { margin-bottom: 7px; }
+ol.passi li::marker { font-weight: 800; color: var(--blue); }
+
 .foodnote { font-weight: 650; }
 .foodnote.crit { color: var(--crit); }
 .foodnote.warn { color: var(--warn); }
