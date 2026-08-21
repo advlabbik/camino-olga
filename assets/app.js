@@ -385,6 +385,82 @@ function statusAge() {
   return { days, txt: days <= 0 ? 'aggiornati oggi' : days === 1 ? 'aggiornati ieri' : 'aggiornati ' + days + ' giorni fa' };
 }
 
+/* ===================== mettere l'app in Home ===================== */
+function isStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+}
+function platformKind() {
+  const ua = navigator.userAgent;
+  const iOS = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (iOS) return /crios|fxios|edgios|opt\//i.test(ua) ? 'ios-altro' : 'ios';
+  if (/android/i.test(ua)) return 'android';
+  return 'desktop';
+}
+let DEFERRED_PROMPT = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); DEFERRED_PROMPT = e; });
+
+function stepsHome(kind) {
+  if (kind === 'ios') return [
+    'In basso tocca il tasto <b>Condividi</b> — il quadratino con la freccia che esce verso l’alto.',
+    'Scorri l’elenco verso il basso e tocca <b>Aggiungi a Home</b>.',
+    'In alto a destra tocca <b>Aggiungi</b>.',
+    'Chiudi Safari e riapri l’app dalla <b>conchiglia gialla</b> che ora trovi in Home.'
+  ];
+  if (kind === 'ios-altro') return [
+    'Su iPhone questa cosa funziona bene solo da <b>Safari</b>.',
+    'Copia l’indirizzo <b>advlabbik.github.io/camino-olga</b>',
+    'Apri <b>Safari</b>, incolla l’indirizzo e vai.',
+    'Poi tasto <b>Condividi</b> in basso, <b>Aggiungi a Home</b> e infine <b>Aggiungi</b>.'
+  ];
+  if (kind === 'android') return [
+    'Tocca i <b>tre puntini</b> in alto a destra.',
+    'Tocca <b>Installa app</b> (su alcuni telefoni si chiama <b>Aggiungi a schermata Home</b>).',
+    'Conferma con <b>Installa</b>.',
+    'Apri l’app dalla <b>conchiglia gialla</b> che ora trovi tra le tue app.'
+  ];
+  return [
+    'Nella barra dell’indirizzo cerca l’icona di installazione, di solito uno schermo con una freccia.',
+    'Conferma l’installazione.',
+    'Sul telefono è ancora più comodo — apri lo stesso indirizzo e mettilo in Home.'
+  ];
+}
+function homeCardHTML(kind, primaVolta) {
+  const passi = stepsHome(kind).map(s => '<li>' + s + '</li>').join('');
+  let h = '<div class="homecard">';
+  h += '<div class="hc-top"><svg viewBox="0 0 54 54" aria-hidden="true" fill="none" stroke="#F4C33F" stroke-width="3" stroke-linecap="round"><path d="M27 46 C14 40 9 28 10 14"/><path d="M27 46 C21 37 18 26 19 12"/><path d="M27 46 C27 35 27 22 27 10"/><path d="M27 46 C33 37 36 26 35 12"/><path d="M27 46 C40 40 45 28 44 14"/></svg>';
+  h += '<div><h2>' + (primaVolta ? 'Benvenuta, Olga' : 'Mettimi in Home') + '</h2>';
+  h += '<p class="small">' + (primaVolta
+    ? 'Sono il tuo compagno di cammino. Prima di ogni altra cosa mettimi nella schermata Home del telefono, poi ti spiego cosa so fare.'
+    : 'Bastano quattro tocchi e mi apri come una vera app.') + '</p></div></div>';
+  h += '<p class="hc-why">Così mi apri con un tocco, senza barre del browser, e <b>continuo a funzionare anche dove non c’è campo</b> — sui Pirenei e in Galizia succede spesso.</p>';
+  h += '<ol class="passi">' + passi + '</ol>';
+  if (kind === 'ios' || kind === 'ios-altro') h += '<p class="hc-note">⚠️ Fallo <b>prima</b> di caricare le tue prenotazioni. Su iPhone l’app in Home ha una memoria tutta sua, separata da quella del browser — se carichi la configurazione qui, dopo dovresti rifarla.</p>';
+  h += '<div class="hc-act">';
+  if (DEFERRED_PROMPT) h += '<button class="btn" id="hcInstall">Installa adesso</button>';
+  h += '<button class="btn" id="hcDone">Fatto, l’ho messa in Home</button>';
+  h += '<button class="btn ghost" id="hcLater">Più tardi</button>';
+  h += '</div></div>';
+  return h;
+}
+function wireHomeCard(afterAction) {
+  const inst = $('#hcInstall');
+  if (inst) inst.onclick = async () => {
+    if (!DEFERRED_PROMPT) return;
+    DEFERRED_PROMPT.prompt();
+    try { await DEFERRED_PROMPT.userChoice; } catch (e) {}
+    DEFERRED_PROMPT = null; S.homeDone = true; saveState(); afterAction();
+  };
+  const done = $('#hcDone');
+  if (done) done.onclick = () => { S.homeDone = true; saveState(); afterAction(); };
+  const later = $('#hcLater');
+  if (later) later.onclick = () => { S.homeLater = Date.now(); saveState(); afterAction(); };
+}
+function mostraHomeCard() {
+  if (isStandalone() || S.homeDone) return false;
+  if (S.homeLater && (Date.now() - S.homeLater) < 20 * 3600000) return false;
+  return true;
+}
+
 /* ===================== viste ===================== */
 let TAB = 'oggi';
 function render() { const v = { oggi: viewOggi, mappa: viewMappa, diario: viewDiario, info: viewInfo, setup: viewSetup }[TAB] || viewOggi; v(); markTabs(); }
@@ -406,8 +482,19 @@ function markTabs() { document.querySelectorAll('.tabs button').forEach(b => b.c
 
 function viewOggi() {
   const m = $('#main'); m.innerHTML = '';
+  const kind = platformKind();
+  const primaVolta = !S.setup;
+  const cardHome = mostraHomeCard();
+  if (cardHome) {
+    m.append(el(homeCardHTML(kind, primaVolta)));
+    wireHomeCard(() => render());
+  }
   if (!S.setup) {
-    m.append(el(card('<h2>Ciao! 🐚</h2><p>Questa app accompagna il cammino di Olga. Per cominciare serve il file di configurazione con le prenotazioni — si carica una volta sola, resta solo su questo telefono.</p><button class="btn" onclick="TAB=\'setup\';render()">Carica configurazione</button>')));
+    const iOS = kind === 'ios' || kind === 'ios-altro';
+    m.append(el(card('<h2>Poi carichiamo il tuo viaggio</h2><p class="small">Le tue prenotazioni e il diario restano solo su questo telefono, non li vede nessun altro. Si caricano una volta sola con un copia e incolla.</p>'
+      + (iOS && cardHome ? '<p class="small"><b>Prima mettimi in Home</b>, poi riaprimi dalla conchiglia e carica il file da lì — così non devi rifarlo due volte.</p>' : '')
+      + '<button class="btn" id="goSetup">Carica il viaggio</button>')));
+    const g = $('#goSetup'); if (g) g.onclick = () => { TAB = 'setup'; render(); };
     return;
   }
   const start = S.setup.profile.start;
@@ -633,6 +720,7 @@ function viewInfo() {
   const m = $('#main'); m.innerHTML = '';
   const sellosList = DATA.sellos ? DATA.sellos.famosi.map(s => '<p><b>' + esc(s.name) + '</b><br><span class="small">' + esc(s.note) + '</span></p>').join('') : '';
   const cards = [
+    ['📱 Mettermi in Home', '<p>Se non l’hai già fatto, mettimi nella schermata Home — mi apri con un tocco e continuo a funzionare anche senza campo.</p><ol class="passi">' + stepsHome(platformKind()).map(s => '<li>' + s + '</li>').join('') + '</ol>' + (isStandalone() ? '<p class="small"><b>Già fatto</b> — mi stai aprendo dalla Home, tutto a posto.</p>' : '')],
     ['📮 Timbri (sellos)', '<p>' + esc(DATA.sellos ? DATA.sellos.regola : '') + '</p><h3 class="mt">I timbri da non perdere</h3>' + sellosList],
     ['🆘 Sicurezza', '<p><b>112</b> funziona in Francia e Spagna su qualsiasi rete, anche senza campo del tuo operatore.</p><p><b>AlertCops</b> — app della polizia spagnola con SOS che invia la tua posizione. Attiva la funzione «Guardián Camino de Santiago» prima di partire.</p><p>Il Francese è tra i cammini più sicuri al mondo per una donna sola — la folla è la tua rete. In albergue i valori restano sempre con te (marsupio anche in doccia).</p>'],
     ['🦶 Piedi e gambe', '<p>Punto caldo = cerotto SUBITO, mai «alla prossima pausa». Vescica formata piccola — proteggi e basta. Grande e dolorosa — ago sterilizzato, svuota, NON togliere la pelle, disinfetta.</p><p>Tibie o tendini che tirano = rallenta subito. Un giorno corto oggi salva il cammino intero. Se peggiora, 1-2 giorni di riposo veri.</p>'],

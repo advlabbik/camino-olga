@@ -185,3 +185,21 @@ ol.passi li::marker { font-weight: 800; color: var(--blue); }
 .mt { margin-top: 12px; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* card di benvenuto e installazione in Home */
+.homecard {
+  background: linear-gradient(180deg, var(--blue) 0%, var(--blue) 84px, var(--panel) 84px);
+  border: 1px solid var(--line); border-radius: 16px; padding: 16px;
+  margin: 0 0 14px; box-shadow: var(--shadow);
+}
+.homecard .hc-top { display: flex; gap: 14px; align-items: flex-start; }
+.homecard .hc-top svg { width: 52px; height: 52px; flex: none; }
+.homecard .hc-top h2 { color: #fff; margin: 4px 0 6px; font-size: 21px; }
+.homecard .hc-top .small { color: rgba(255,255,255,.92); }
+.homecard .hc-why { font-size: 14.5px; margin: 14px 0 4px; }
+.homecard .hc-note {
+  font-size: 13.5px; background: var(--warn-bg); color: var(--warn);
+  border-radius: 10px; padding: 10px 12px; margin: 4px 0 0; font-weight: 600;
+}
+.homecard .hc-act { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.homecard .hc-act .btn { flex: 1 1 auto; }

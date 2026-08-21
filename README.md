@@ -40,6 +40,12 @@ python -m http.server 8123
 | `manifest.webmanifest`, `sw.js` | PWA. Service worker **network-first** con cache di salvataggio. **Bumpare `V` in `sw.js` a ogni modifica dei file** |
 | `tools/` | Script riproducibili di build dati (Overpass con cache in `tools/cache/`, gitignorata) |
 
+## Prima apertura
+
+Al primo avvio (e finché non risulta installata) l'app mostra una card di benvenuto con la **procedura passo passo per mettersi in Home**, adattata alla piattaforma — iPhone/Safari, iPhone con altro browser, Android (con il pulsante nativo quando il browser espone `beforeinstallprompt`), desktop. Si chiude con «Fatto» (definitivo, `S.homeDone`) o «Più tardi» (ricompare dopo 20 ore). Le stesse istruzioni restano sempre nella prima scheda di **Schede**.
+
+**Trappola iOS che giustifica l'ordine delle operazioni** — su iPhone la web app aggiunta alla Home ha un contenitore di storage **separato** da Safari. Se la configurazione viene incollata nel browser e solo dopo si aggiunge l'app alla Home, l'app installata parte vuota e il setup va rifatto. Per questo la card dice esplicitamente di installare **prima** e caricare il viaggio **dopo**, dall'icona.
+
 ## Privacy — regola di architettura
 
 **Nessun dato personale nel repo** (è pubblico). Prenotazioni, diario e posizioni vivono solo in `localStorage` sul telefono (chiave `bco_v1`), caricate una volta con incolla-JSON nel tab Setup. Il file di configurazione di Olga sta fuori dal repo, nella cartella Cowork del progetto. L'unica chiamata di rete dell'app è Open-Meteo con coordinate del percorso; i tile mappa si caricano solo aprendo il tab Mappa.
