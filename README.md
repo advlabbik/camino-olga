@@ -46,6 +46,12 @@ Al primo avvio (e finché non risulta installata) l'app mostra una card di benve
 
 **Trappola iOS che giustifica l'ordine delle operazioni** — su iPhone la web app aggiunta alla Home ha un contenitore di storage **separato** da Safari. Se la configurazione viene incollata nel browser e solo dopo si aggiunge l'app alla Home, l'app installata parte vuota e il setup va rifatto. Per questo la card dice esplicitamente di installare **prima** e caricare il viaggio **dopo**, dall'icona.
 
+## Il piano del mattino
+
+«Parto» costruisce il piano sull'**orizzonte giusto** — la **tappa intera** quando in configurazione c'è il letto di stasera sullo stesso segmento (titolo «Oggi — da → a», km e D+ fino al letto), altrimenti i **prossimi 25 km**. Meteo, alert, nastro e timbri usano tutti quell'orizzonte.
+
+**Timbri** — blocco dedicato con la regola del giorno (1, oppure 2 da Sarria e sull'Epilogo), **contatore tap-to-count** salvato in `S.days[].sellos`, i timbri famosi di oggi con la distanza, l'elenco delle località dove chiedere e il promemoria che l'alloggio di stasera timbra sempre. A «Fine tappa» l'app verifica il conteggio e insiste se manca. Sulla mappa il livello 📮 è acceso di default e i popup delle località ricordano che lì si può timbrare.
+
 ## Privacy — regola di architettura
 
 **Nessun dato personale nel repo** (è pubblico). Prenotazioni, diario e posizioni vivono solo in `localStorage` sul telefono (chiave `bco_v1`), caricate una volta con incolla-JSON nel tab Setup. Il file di configurazione di Olga sta fuori dal repo, nella cartella Cowork del progetto. L'unica chiamata di rete dell'app è Open-Meteo con coordinate del percorso; i tile mappa si caricano solo aprendo il tab Mappa.
@@ -69,6 +75,7 @@ I link «Booking» del motore «dove dormo» passano da Stay22 Allez con **AID a
 
 ## Trappole note
 
+- **Ogni file elencato in `SHELL` di `sw.js` deve esistere davvero.** Il precache è atomico (`addAll`), quindi un solo 404 fa fallire l'installazione del service worker e l'app resta senza offline, in silenzio. È già successo con `assets/icon-512.png`, referenziata prima di essere creata. Dopo ogni deploy vale un giro di `curl -o /dev/null -w '%{http_code}'` su tutti i file di SHELL.
 - **Service worker network-first, non cache-first**: la primissima versione era cache-first e un client con la cache vecchia è crashato sui dati nuovi («DATA.loc is not iterable»). Chi ha rete deve vedere sempre l'ultima versione; la cache serve solo dove il segnale manca.
 - `pois.json` e `localities.json` hanno un involucro `{meta, …}` con l'attribuzione ODbL — il loader lo spacchetta e tollera entrambi i formati.
 - Le **fontane vicine si raggruppano** nel nastro (entro ~600 m, col conteggio): nei paesi ce ne sono anche 4-5 nello stesso km.
