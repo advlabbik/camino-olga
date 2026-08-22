@@ -214,3 +214,7 @@ ol.passi li::marker { font-weight: 800; color: var(--blue); }
 .sello-count .sc-n.ok { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
 .sello-count .btn { padding: 9px 14px; font-size: 14px; }
 .dimtxt { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* barra di avanzamento della tappa */
+.pbar { height: 9px; background: var(--panel2); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; margin-top: 4px; }
+.pbar i { display: block; height: 100%; background: var(--yellow); border-radius: 99px; }

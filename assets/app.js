@@ -569,7 +569,7 @@ function viewOggi() {
   const hour = now().getHours();
 
   m.append(el('<div class="bigbtns">' +
-    bigBtn('parto', '🌅', 'Parto', day && day.start ? 'ripeti per aggiornare il piano' : 'meteo e piano della giornata', !day || !day.start) +
+    bigBtn('parto', day && day.start ? '📍' : '🌅', day && day.start ? 'Dove sono?' : 'Parto', day && day.start ? 'posizione aggiornata e cosa hai davanti' : 'meteo e piano della giornata', !day || !day.start) +
     bigBtn('dormo', '🛏', 'Dove dormo stasera?', 'consiglio onesto sulle prossime mete', false) +
     bigBtn('fine', '🏁', 'Fine tappa', day && day.end ? 'tappa già chiusa — ripeti se serve' : 'salva la giornata e guarda domani', false) +
     '</div>'));
@@ -617,26 +617,41 @@ async function flowParto() {
     S.lastPos = { ...pos, t: now().toISOString() };
     let day = S.days.find(d => d.date === today);
     if (!day) { day = { date: today, km: 0 }; S.days.push(day); }
+    const giaPartita = !!day.start; /* pressione successiva = "dove sono", non nuova partenza */
     if (!day.start) day.start = { t: now().toISOString(), seg: pos.seg, km: pos.km };
     const targetKm = tonight && tonight.seg === pos.seg && Number.isFinite(tonight.km) && tonight.km > pos.km + 0.2 ? tonight.km : null;
     const pace = paceKmh();
     const samples = buildSamples(pos.seg, pos.km, pace, targetKm);
     let wx = null;
     try { wx = await fetchWeather(samples); S.lastWeather = { t: Date.now(), sunset: wx.sunset }; } catch (e) {}
-    day.plan = buildPlanModel(pos, wx, tonight, pace);
+    day.plan = buildPlanModel(pos, wx, tonight, pace, giaPartita ? day : null);
     saveState();
     c.innerHTML = ''; renderPlan(c, day.plan, false);
   } catch (e) { c.innerHTML = card('<h3>Ops</h3><p class="small">' + esc(e.message) + '</p>', 'warn'); }
 }
-function buildPlanModel(pos, wx, tonight, pace) {
+function buildPlanModel(pos, wx, tonight, pace, prev) {
   const mile = milestoneHit(pos.seg, pos.km);
   /* orizzonte del piano = la tappa intera se sappiamo dove dorme, altrimenti 25 km */
   const segLen = DATA.track[pos.seg].km_total;
   const metaKm = tonight && tonight.seg === pos.seg && Number.isFinite(tonight.km) && tonight.km > pos.km + 0.2 ? tonight.km : null;
   const horizon = Math.min(segLen - pos.km + 0.2, metaKm ? (metaKm - pos.km) + 0.6 : 25);
-  const phrase = mile || pickPhrase(wx && wx.rows.some(r => r.prob >= 55) ? 'parto_pioggia' : (dplusBetween(pos.seg, pos.km, pos.km + 15) > 600 ? 'parto_duro' : 'parto'));
+  /* negli aggiornamenti di meta giornata la frase della mattina resta (non si brucia il pool),
+     a meno che non sia appena stata attraversata una pietra miliare */
+  const phrase = mile || (prev && prev.plan && prev.plan.phrase) || pickPhrase(wx && wx.rows.some(r => r.prob >= 55) ? 'parto_pioggia' : (dplusBetween(pos.seg, pos.km, pos.km + 15) > 600 ? 'parto_duro' : 'parto'));
+  let progress = null;
+  if (prev && prev.start) {
+    const kmToday = walkedBetween(prev.start.seg, prev.start.km, pos.seg, pos.km);
+    const kmLeft = metaKm != null ? Math.max(0, metaKm - pos.km) : null;
+    progress = {
+      kmToday: kmToday,
+      kmLeft: kmLeft,
+      pct: kmLeft != null && (kmToday + kmLeft) > 0.5 ? Math.min(100, Math.round(kmToday / (kmToday + kmLeft) * 100)) : null,
+      eta: kmLeft != null ? new Date(now().getTime() + kmLeft / pace * 3600000).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : null,
+      dove: nearLocName(pos.seg, pos.km)
+    };
+  }
   return {
-    t: now().toISOString(), seg: pos.seg, km: pos.km, phrase, milestone: !!mile,
+    t: now().toISOString(), seg: pos.seg, km: pos.km, phrase, milestone: !!mile, progress,
     wx: wx ? { rows: wx.rows.map(r => ({ km: r.km, label: r.label, etaH: r.eta.getHours() + ':' + String(r.eta.getMinutes()).padStart(2, '0'), temp: r.temp, prob: r.prob, code: r.code, wind: r.wind })), sunrise: wx.sunrise, sunset: wx.sunset } : null,
     tonight: tonight ? (() => {
       let kmLeft = null, dplus = null;
@@ -664,6 +679,13 @@ function buildPlanModel(pos, wx, tonight, pace) {
 }
 function renderPlan(c, P, stale) {
   c.append(el('<div class="phrase">' + (P.milestone ? '⭐ ' : '') + esc(P.phrase) + '</div>'));
+  if (P.progress) {
+    const pr = P.progress;
+    let hq = '<h3>📍 Sei qui</h3><p class="small"><b>' + esc(pr.dove) + '</b> — oggi hai già camminato <b>' + pr.kmToday.toFixed(1) + ' km</b>'
+      + (pr.kmLeft != null ? ', te ne mancano <b>' + pr.kmLeft.toFixed(1) + '</b> al letto. Di questo passo arrivi verso le <b>' + pr.eta + '</b>.' : '.') + '</p>';
+    if (pr.pct != null) hq += '<div class="pbar"><i style="width:' + pr.pct + '%"></i></div><p class="age" style="margin:4px 0 0">' + pr.pct + '% della tappa alle spalle · le distanze qui sotto partono da dove sei adesso</p>';
+    c.append(el(card(hq, 'ok')));
+  }
   let s = '<div class="stat-row">';
   if (P.tonight && P.tonight.kmLeft != null) s += stat(P.tonight.kmLeft.toFixed(1) + ' km', 'a ' + esc(P.tonight.place)) + stat('+' + P.tonight.dplus + ' m', 'salita rimasta');
   s += stat(P.santiago.toFixed(0) + ' km', 'a Santiago') + stat(P.fisterra.toFixed(0) + ' km', 'all’oceano') + '</div>';

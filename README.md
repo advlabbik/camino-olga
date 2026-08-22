@@ -50,6 +50,8 @@ Al primo avvio (e finché non risulta installata) l'app mostra una card di benve
 
 «Parto» costruisce il piano sull'**orizzonte giusto** — la **tappa intera** quando in configurazione c'è il letto di stasera sullo stesso segmento (titolo «Oggi — da → a», km e D+ fino al letto), altrimenti i **prossimi 25 km**. Meteo, alert, nastro e timbri usano tutti quell'orizzonte.
 
+**«Dove sono?»** — dopo la prima pressione il bottone cambia identità (📍) e le pressioni successive nella giornata aggiornano il piano dalla posizione corrente, con una card «Sei qui» in testa — località, km già fatti (via `walkedBetween`, regge i cambi di segmento), km al letto, ETA al passo reale e barra di avanzamento della tappa. La frase della mattina viene riusata (il pool non si brucia), salvo pietra miliare appena attraversata, che vince sempre.
+
 **Timbri** — blocco dedicato con la regola del giorno (1, oppure 2 da Sarria e sull'Epilogo), **contatore tap-to-count** salvato in `S.days[].sellos`, i timbri famosi di oggi con la distanza, l'elenco delle località dove chiedere e il promemoria che l'alloggio di stasera timbra sempre. A «Fine tappa» l'app verifica il conteggio e insiste se manca. Sulla mappa il livello 📮 è acceso di default e i popup delle località ricordano che lì si può timbrare.
 
 ## Privacy — regola di architettura
