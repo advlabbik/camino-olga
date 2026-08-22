@@ -237,6 +237,70 @@ function activeAlerts(seg, km, horizon) {
   });
 }
 
+/* ===================== timbri (sellos) ===================== */
+const SARRIA_KM = 642;
+function selloRule(seg, km) {
+  if (seg === 'frances') return km >= SARRIA_KM - 1 ? 2 : 1;
+  return 2; /* sull'Epilogo servono per la Fisterrana */
+}
+function selloPlan(seg, km, horizon, tonight) {
+  const need = selloRule(seg, km + Math.min(horizon, 30));
+  const famosi = (DATA.sellos ? DATA.sellos.famosi : [])
+    .filter(s => s.seg === seg && s.km >= km - 0.3 && s.km <= km + horizon)
+    .map(s => ({ km: s.km, name: s.name, note: s.note }));
+  const posti = (DATA.loc || [])
+    .filter(L => L.seg === seg && L.km > km + 0.2 && L.km <= km + horizon && ((L.f || 0) + (L.sl || 0)) > 0)
+    .map(L => ({ km: L.km, name: L.name, f: L.f || 0, sl: L.sl || 0 }));
+  return { need: need, famosi: famosi, posti: posti, tonight: tonight ? tonight.name : null };
+}
+function sellosOggi() {
+  const d = S.days.find(x => x.date === todayStr());
+  return (d && d.sellos) || 0;
+}
+function addSello(n) {
+  const t = todayStr();
+  let d = S.days.find(x => x.date === t);
+  if (!d) { d = { date: t, km: 0 }; S.days.push(d); }
+  d.sellos = Math.max(0, (d.sellos || 0) + n);
+  saveState();
+}
+function selloCardHTML(sp, kmNow) {
+  const fatti = sellosOggi();
+  let h = '<h3>\u{1F4EE} I timbri di oggi</h3>';
+  h += '<p class="small">' + (sp.need === 2
+    ? 'Da qui in poi ne servono <b>due al giorno</b>. Uno lo fa sempre l\u2019albergue dove dormi, il secondo prendilo a pranzo o in una chiesa.'
+    : 'Ne basta <b>uno al giorno</b> e te lo fa l\u2019albergue dove dormi. Se per strada ne vedi uno bello, prendilo lo stesso.') + '</p>';
+  h += '<div class="sello-count"><span class="sc-n' + (fatti >= sp.need ? ' ok' : '') + '">' + fatti + ' / ' + sp.need + '</span>'
+    + '<button class="btn" id="selloAdd">Ho timbrato</button>'
+    + (fatti ? ' <button class="btn ghost" id="selloDel">Annulla</button>' : '') + '</div>';
+  if (sp.famosi.length) {
+    h += '<p class="small mt"><b>Da non perdere oggi</b></p><div class="ribbon">';
+    for (const f of sp.famosi) {
+      const d = Math.max(0, f.km - kmNow);
+      h += '<div class="rib"><span class="km">' + d.toFixed(1) + ' km</span><span class="ico">\u{1F4EE}</span>'
+        + '<span class="what"><b>' + esc(f.name) + '</b><small>' + esc(f.note) + '</small></span></div>';
+    }
+    h += '</div>';
+  }
+  if (sp.posti.length) {
+    const lista = sp.posti.slice(0, 8).map(p => esc(p.name) + ' <span class="dimtxt">' + Math.max(0, p.km - kmNow).toFixed(1) + ' km</span>').join(' \u00b7 ');
+    h += '<p class="small mt"><b>Dove chiedere lungo la strada</b><br>' + lista + (sp.posti.length > 8 ? ' e altri ancora' : '') + '</p>';
+  }
+  if (sp.tonight) h += '<p class="small"><b>Stasera</b> \u2014 ' + esc(sp.tonight) + ' timbra di sicuro, chiedilo al check-in.</p>';
+  h += '<p class="small" style="margin-bottom:0">Si timbra quasi ovunque \u2014 albergue, bar, chiese, uffici turistici, municipi. La frase magica \u00e8 <b>\u00abMe puede sellar la credencial, por favor?\u00bb</b></p>';
+  return h;
+}
+function wireSelloOn(node, P) {
+  const a = node.querySelector('#selloAdd');
+  if (a) a.onclick = () => { addSello(1); const n = el(card(selloCardHTML(P.sellos, P.km))); node.replaceWith(n); wireSelloOn(n, P); };
+  const d = node.querySelector('#selloDel');
+  if (d) d.onclick = () => { addSello(-1); const n = el(card(selloCardHTML(P.sellos, P.km))); node.replaceWith(n); wireSelloOn(n, P); };
+}
+function wireSello(refresh) {
+  const a = $('#selloAdd'); if (a) a.onclick = () => { addSello(1); refresh(); };
+  const d = $('#selloDel'); if (d) d.onclick = () => { addSello(-1); refresh(); };
+}
+
 /* ===================== nastro "cosa c'è davanti" ===================== */
 const ICONS = { water: '💧', pharmacy: '💊', atm: '🏧', shop: '🛒', food: '🍽', sleep: '🛏', sello: '📮' };
 function ribbon(seg, km, horizon) {
@@ -566,6 +630,10 @@ async function flowParto() {
 }
 function buildPlanModel(pos, wx, tonight, pace) {
   const mile = milestoneHit(pos.seg, pos.km);
+  /* orizzonte del piano = la tappa intera se sappiamo dove dorme, altrimenti 25 km */
+  const segLen = DATA.track[pos.seg].km_total;
+  const metaKm = tonight && tonight.seg === pos.seg && Number.isFinite(tonight.km) && tonight.km > pos.km + 0.2 ? tonight.km : null;
+  const horizon = Math.min(segLen - pos.km + 0.2, metaKm ? (metaKm - pos.km) + 0.6 : 25);
   const phrase = mile || pickPhrase(wx && wx.rows.some(r => r.prob >= 55) ? 'parto_pioggia' : (dplusBetween(pos.seg, pos.km, pos.km + 15) > 600 ? 'parto_duro' : 'parto'));
   return {
     t: now().toISOString(), seg: pos.seg, km: pos.km, phrase, milestone: !!mile,
@@ -581,8 +649,16 @@ function buildPlanModel(pos, wx, tonight, pace) {
       }
       return { name: tonight.name, place: tonight.place, kmLeft, dplus, note: tonight.note || '' };
     })() : null,
-    alerts: activeAlerts(pos.seg, pos.km, 26).map(a => ({ level: a.level, title: a.title, body: a.body, steps: a.steps || null, coda: a.coda || null })),
-    rib: ribbon(pos.seg, pos.km, 26),
+    alerts: activeAlerts(pos.seg, pos.km, Math.max(horizon, 12)).map(a => ({ level: a.level, title: a.title, body: a.body, steps: a.steps || null, coda: a.coda || null })),
+    stage: {
+      meta: metaKm != null,
+      da: nearLocName(pos.seg, pos.km),
+      a: metaKm != null ? (tonight.place || nearLocName(pos.seg, metaKm)) : null,
+      km: metaKm != null ? metaKm - pos.km : Math.min(25, segLen - pos.km),
+      dplus: dplusBetween(pos.seg, pos.km, metaKm != null ? metaKm : Math.min(pos.km + 25, segLen))
+    },
+    sellos: selloPlan(pos.seg, pos.km, horizon, tonight),
+    rib: ribbon(pos.seg, pos.km, horizon),
     santiago: kmToSantiago(pos.seg, pos.km), fisterra: kmToFisterra(pos.seg, pos.km), pace
   };
 }
@@ -592,7 +668,14 @@ function renderPlan(c, P, stale) {
   if (P.tonight && P.tonight.kmLeft != null) s += stat(P.tonight.kmLeft.toFixed(1) + ' km', 'a ' + esc(P.tonight.place)) + stat('+' + P.tonight.dplus + ' m', 'salita rimasta');
   s += stat(P.santiago.toFixed(0) + ' km', 'a Santiago') + stat(P.fisterra.toFixed(0) + ' km', 'all’oceano') + '</div>';
   if (P.wx) s += '<p class="small mt">🌅 alba ' + P.wx.sunrise + ' · 🌇 tramonto ' + P.wx.sunset + '</p>';
-  c.append(el(card('<h2>' + (stale ? 'Il piano di oggi' : 'La tua giornata') + '</h2>' + s)));
+  const titolo = P.stage
+    ? (P.stage.meta
+        ? 'Oggi \u2014 ' + esc(P.stage.da) + ' \u2192 ' + esc(P.stage.a)
+        : 'I prossimi ' + P.stage.km.toFixed(0) + ' km')
+    : (stale ? 'Il piano di oggi' : 'La tua giornata');
+  const sotto = P.stage ? '<p class="small">' + P.stage.km.toFixed(1) + ' km e +' + P.stage.dplus + ' m di salita'
+    + (P.stage.meta ? ' fino al letto di stasera' : ' \u2014 non hai ancora un letto prenotato, quando decidi te lo ricalcolo') + '</p>' : '';
+  c.append(el(card('<h2>' + titolo + '</h2>' + sotto + s)));
   for (const a of P.alerts) {
     let h = '<h3>' + (a.level === 'critico' ? '⚠️' : a.level === 'attenzione' ? '🔶' : 'ℹ️') + ' ' + esc(a.title) + '</h3><p class="small">' + esc(a.body) + '</p>';
     if (a.steps && a.steps.length) {
@@ -609,6 +692,11 @@ function renderPlan(c, P, stale) {
     c.append(el(card(w)));
   } else c.append(el(card('<p class="small">Meteo non raggiungibile ora — riprova quando hai campo. Il resto funziona lo stesso.</p>', 'warn')));
   if (P.tonight) c.append(el(card('<h3>🛏 Stasera</h3><p><b>' + esc(P.tonight.name) + '</b> — ' + esc(P.tonight.place) + '</p>' + (P.tonight.note ? '<p class="small">' + esc(P.tonight.note) + '</p>' : ''))));
+  if (P.sellos) {
+    const sc = el(card(selloCardHTML(P.sellos, P.km)));
+    c.append(sc);
+    wireSello(() => { const n = el(card(selloCardHTML(P.sellos, P.km))); sc.replaceWith(n); wireSelloOn(n, P); });
+  }
   if (P.rib.length) {
     let r = '<h3>Cosa c’è davanti</h3><div class="ribbon">';
     for (const x of P.rib) r += '<div class="rib' + (x.dim ? ' dim' : '') + '"><span class="km">' + (x.km - P.km).toFixed(1) + ' km</span><span class="ico">' + x.ico + '</span><span class="what">' + (x.loc ? '<b>' : '') + esc(x.main) + (x.loc ? '</b>' : '') + (x.sub ? '<small>' + esc(x.sub) + '</small>' : '') + '</span></div>';
@@ -698,6 +786,12 @@ async function flowFine() {
     }
     const tomorrow = new Date(now()); tomorrow.setDate(tomorrow.getDate() + 1);
     const tomBooking = (S.setup.nights || []).find(n => n.date === todayStr(tomorrow));
+    if (pos) {
+      const need = selloRule(pos.seg, pos.km), fatti = sellosOggi();
+      if (fatti < need) c.append(el(card('<h3>\u{1F4EE} Timbro di oggi</h3><p class="small">Ne risultano <b>' + fatti + ' su ' + need + '</b>. Chiedilo adesso al check-in \u2014 \u00abMe puede sellar la credencial, por favor?\u00bb</p><button class="btn" id="selloAdd">Fatto, timbrata</button>', 'warn')));
+      else c.append(el(card('<p class="small">\u{1F4EE} Timbri di oggi \u2014 <b>' + fatti + ' su ' + need + '</b>, sei a posto.</p>', 'ok')));
+      const sa = $('#selloAdd'); if (sa) sa.onclick = () => { addSello(1); flowFine(); };
+    }
     let ev = '<h3>Stasera, con calma</h3><p class="small">🛏 Controllo cimici in 60 secondi — cuciture del materasso, zaino MAI sul letto<br>🦶 Piedi — lava, asciuga, aria. Ogni punto caldo si tratta subito<br>🍽 Cena da pellegrina 19-20, i ristoranti spagnoli aprono tardi<br>📞 <b>Alle 18 prenota domani sera</b> — la regola d’oro di settembre' + (pos && pos.seg === 'frances' && pos.km > 640 ? '<br>📮 Da Sarria in poi — oggi hai preso i 2 timbri?' : '') + '</p>';
     if (tomBooking) ev += '<p class="small mt"><b>Domani sera sei già a posto</b> — ' + esc(tomBooking.name) + ', ' + esc(tomBooking.place) + '.</p>';
     c.append(el(card(ev)));
@@ -721,8 +815,7 @@ function viewInfo() {
   const sellosList = DATA.sellos ? DATA.sellos.famosi.map(s => '<p><b>' + esc(s.name) + '</b><br><span class="small">' + esc(s.note) + '</span></p>').join('') : '';
   const cards = [
     ['📱 Mettermi in Home', '<p>Se non l’hai già fatto, mettimi nella schermata Home — mi apri con un tocco e continuo a funzionare anche senza campo.</p><ol class="passi">' + stepsHome(platformKind()).map(s => '<li>' + s + '</li>').join('') + '</ol>' + (isStandalone() ? '<p class="small"><b>Già fatto</b> — mi stai aprendo dalla Home, tutto a posto.</p>' : '')],
-    ['📮 Timbri (sellos)', '<p>' + esc(DATA.sellos ? DATA.sellos.regola : '') + '</p><h3 class="mt">I timbri da non perdere</h3>' + sellosList],
-    ['🆘 Sicurezza', '<p><b>112</b> funziona in Francia e Spagna su qualsiasi rete, anche senza campo del tuo operatore.</p><p><b>AlertCops</b> — app della polizia spagnola con SOS che invia la tua posizione. Attiva la funzione «Guardián Camino de Santiago» prima di partire.</p><p>Il Francese è tra i cammini più sicuri al mondo per una donna sola — la folla è la tua rete. In albergue i valori restano sempre con te (marsupio anche in doccia).</p>'],
+    ['\u{1F4EE} Timbri \u2014 dove e come', '<p><b>Dove si timbra</b><br>Praticamente ovunque \u2014 l\u2019albergue o l\u2019hotel dove dormi (sempre, chiedilo al check-in), bar e ristoranti sul cammino, chiese e cattedrali, uffici del turismo, municipi, e in Galizia perfino alcune farmacie. Non serve consumare, ma un caff\u00e8 \u00e8 buona educazione.</p><p><b>Quanti ne servono</b><br>Uno al giorno fino a Sarria. <b>Due al giorno dopo Sarria</b> (ultimi 100 km) per avere la Compostela, e due al giorno anche sull\u2019Epilogo per la Fisterrana. L\u2019app te lo ricorda ogni mattina e te li conta.</p><p><b>La frase magica</b><br>\u00abMe puede sellar la credencial, por favor?\u00bb</p><p><b>Se te ne dimentichi uno</b><br>Non succede niente di grave finch\u00e9 sei prima di Sarria. Negli ultimi 100 km invece contano davvero, quindi l\u00ec l\u2019app diventa insistente.</p><h3 class="mt">I timbri da non perdere</h3>' + sellosList + '<p class="small">Li trovi tutti anche sulla <b>mappa</b>, con l\u2019icona \u{1F4EE}, e nel piano di ogni mattina.</p>'],    ['🆘 Sicurezza', '<p><b>112</b> funziona in Francia e Spagna su qualsiasi rete, anche senza campo del tuo operatore.</p><p><b>AlertCops</b> — app della polizia spagnola con SOS che invia la tua posizione. Attiva la funzione «Guardián Camino de Santiago» prima di partire.</p><p>Il Francese è tra i cammini più sicuri al mondo per una donna sola — la folla è la tua rete. In albergue i valori restano sempre con te (marsupio anche in doccia).</p>'],
     ['🦶 Piedi e gambe', '<p>Punto caldo = cerotto SUBITO, mai «alla prossima pausa». Vescica formata piccola — proteggi e basta. Grande e dolorosa — ago sterilizzato, svuota, NON togliere la pelle, disinfetta.</p><p>Tibie o tendini che tirano = rallenta subito. Un giorno corto oggi salva il cammino intero. Se peggiora, 1-2 giorni di riposo veri.</p>'],
     ['🛏 Cimici in 60 secondi', '<p>All’arrivo controlla le cuciture del materasso — puntini neri o insetti. Zaino MAI sul letto (pavimento o panca). Punture in fila che prudono? Dillo subito all’hospitalero, lava tutto a 60° e asciuga a caldo.</p>'],
     ['💧 Acqua', '<p>Le fontane dei paesi sono potabili salvo cartello «agua no potable» o «no tratada» (= non garantita). Nel dubbio riempi al bar. Regola d’oro — riparti sempre con acqua per tutto il tratto fino al prossimo paese.</p>'],

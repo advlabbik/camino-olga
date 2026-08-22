@@ -203,3 +203,14 @@ ol.passi li::marker { font-weight: 800; color: var(--blue); }
 }
 .homecard .hc-act { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .homecard .hc-act .btn { flex: 1 1 auto; }
+
+/* contatore timbri */
+.sello-count { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; flex-wrap: wrap; }
+.sello-count .sc-n {
+  font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums;
+  background: var(--yellow-soft); border: 1px solid var(--yellow); color: var(--ink);
+  border-radius: 10px; padding: 6px 12px;
+}
+.sello-count .sc-n.ok { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
+.sello-count .btn { padding: 9px 14px; font-size: 14px; }
+.dimtxt { color: var(--muted); font-variant-numeric: tabular-nums; }

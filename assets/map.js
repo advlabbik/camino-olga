@@ -52,7 +52,8 @@ function bcoInitMap() {
       m.bindPopup('<b>' + escMap(L2.name) + '</b><br>' + SEGNAME[L2.seg] + ' · km ' + L2.km.toFixed(1) +
         '<br>🛏 ' + L2.sl + (L2.alb ? ' (albergue ' + L2.alb + ')' : '') +
         (L2.f ? ' · 🍽 ' + L2.f : '') + (L2.s ? ' · 🛒 ' + L2.s : '') +
-        (L2.ph ? ' · 💊' : '') + (L2.atm ? ' · 🏧' : '') + (L2.w ? ' · 💧' : ''));
+        (L2.ph ? ' · 💊' : '') + (L2.atm ? ' · 🏧' : '') + (L2.w ? ' · 💧' : '') +
+        '<br>📮 qui puoi chiedere il timbro');
       g.addLayer(m);
     }
     MAPLAYERS.loc = g;
@@ -175,7 +176,7 @@ function buildChips() {
     };
     bar.append(c);
   }
-  for (const [key, label] of [['loc', '🏘 Località con letti'], ['sellos', '📮 Timbri'], ['bookings', '📌 Prenotazioni']]) {
+  for (const [key, label] of [['loc', '🏘 Località con letti'], ['sellos', '\u{1F4EE} Timbri famosi'], ['bookings', '📌 Prenotazioni']]) {
     if (!MAPLAYERS[key]) continue;
     const c = document.createElement('button');
     c.className = 'chip' + (MAP.hasLayer(MAPLAYERS[key]) ? ' on' : '');
