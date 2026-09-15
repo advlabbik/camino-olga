@@ -113,15 +113,27 @@ function ptAt(segName, km) {
   const a = pts[lo], b = pts[hi];
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, (a[2] || 0) + ((b[2] || 0) - (a[2] || 0)) * t];
 }
+/* dislivello ricampionato ogni 400 m — sommare punto per punto (un punto ogni ~120-200 m)
+   gonfia il totale del 20-25% per il rumore delle quote OSM. Con questo passo la Napoleone
+   torna a +1.375 invece di +1.674, e la Valcarlos a +1.160 invece di +1.889. */
 function dplusBetween(segName, km0, km1) {
-  const seg = DATA.track[segName]; let dp = 0;
-  const cums = seg.cum_km, pts = seg.points;
-  for (let i = 0; i < pts.length - 1; i++) {
-    if (cums[i + 1] < km0 || cums[i] > km1) continue;
-    const d = (pts[i + 1][2] || 0) - (pts[i][2] || 0);
-    if (d > 0) dp += d;
+  const seg = DATA.track[segName]; if (!seg) return 0;
+  const a = Math.max(0, Math.min(km0, km1)), b = Math.min(seg.km_total, Math.max(km0, km1));
+  if (!(b > a)) return 0;
+  let dp = 0, k = a, prev = ptAt(segName, a)[2] || 0;
+  while (k < b) {
+    k = Math.min(k + 0.4, b);
+    const e = ptAt(segName, k)[2] || 0;
+    if (e > prev) dp += e - prev;
+    prev = e;
   }
   return Math.round(dp);
+}
+/* salita di una giornata del diario, quando conosciamo i due capi */
+function dayDplus(d) {
+  if (!d || !d.start || !d.end || d.start.seg !== d.end.seg) return null;
+  if (!DATA.track[d.start.seg] || !Number.isFinite(d.start.km) || !Number.isFinite(d.end.km)) return null;
+  return dplusBetween(d.start.seg, d.start.km, d.end.km);
 }
 const FR_LEN = () => DATA.track.frances.km_total;
 const EP_LEN = () => DATA.track.epilogo_fisterra.km_total;
@@ -154,8 +166,10 @@ function walkedBetween(s0, k0, s1, k1) {
 /* ===================== passo e proiezioni ===================== */
 function median(arr) { if (!arr.length) return null; const a = [...arr].sort((x, y) => x - y); const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; }
 function paceKmh() {
-  const v = S.days.filter(d => d.end && d.start && d.km > 3)
-    .map(d => d.km / Math.max(0.5, (new Date(d.end.t) - new Date(d.start.t)) / 3600000)).slice(-6);
+  /* le giornate ricostruite a mano non hanno orari — danno km veri ma nessun passo */
+  const v = S.days.filter(d => d.end && d.end.t && d.start && d.start.t && d.km > 3)
+    .map(d => d.km / Math.max(0.5, (new Date(d.end.t) - new Date(d.start.t)) / 3600000))
+    .filter(x => Number.isFinite(x)).slice(-6);
   const m = median(v);
   if (m) return Math.min(5.5, Math.max(2.2, m));
   /* nessuna tappa CHIUSA ancora = giorno 1 in salita: prudente (il giorno di oggi può già essere in S.days) */
@@ -908,12 +922,16 @@ async function flowFine() {
 function viewDiario() {
   const m = $('#main'); m.innerHTML = '';
   const done = S.days.reduce((a, d) => a + (d.km || 0), 0);
-  m.append(el(card('<h2>Il tuo cammino</h2><div class="stat-row">' + stat(String(S.days.length), 'giorni') + stat(done.toFixed(0) + ' km', 'camminati') + '</div>')));
+  const salita = S.days.reduce((a, d) => a + (dayDplus(d) || 0), 0);
+  m.append(el(card('<h2>Il tuo cammino</h2><div class="stat-row">' + stat(String(S.days.length), 'giorni') + stat(done.toFixed(0) + ' km', 'camminati') + (salita ? stat('+' + salita.toLocaleString('it-IT') + ' m', 'di salita') : '') + '</div>')));
   if (!S.days.length) { m.append(el(card('<p class="small">Il diario si scrive da solo, un “Fine tappa” alla volta.</p>'))); return; }
   let h = '<h3>Giorno per giorno</h3>';
-  S.days.forEach((d, i) => { h += '<div class="diary-day"><b>' + esc(d.date.slice(5)) + '</b><span>' + esc(d.sleptAt || '') + '</span><span class="km">' + (d.km || 0).toFixed(1) + ' km</span></div>'; });
+  S.days.forEach((d, i) => {
+    const dp = dayDplus(d);
+    h += '<div class="diary-day"><b>' + esc(d.date.slice(5)) + '</b><span>' + esc(d.sleptAt || '') + '</span><span class="km">' + (d.km || 0).toFixed(1) + ' km</span>' + (dp ? '<span class="km dp">+' + dp + ' m</span>' : '') + '</div>';
+  });
   m.append(el(card(h)));
-  const txt = 'Il mio Cammino 🐚\n' + S.days.map((d, i) => 'Giorno ' + (i + 1) + ' (' + d.date + ') — ' + (d.km || 0).toFixed(1) + ' km' + (d.sleptAt ? ', notte a ' + d.sleptAt : '')).join('\n') + '\nTotale ' + done.toFixed(0) + ' km';
+  const txt = 'Il mio Cammino \u{1F41A}\n' + S.days.map((d, i) => 'Giorno ' + (i + 1) + ' (' + d.date + ') — ' + (d.km || 0).toFixed(1) + ' km' + (dayDplus(d) ? ' e +' + dayDplus(d) + ' m di salita' : '') + (d.sleptAt ? ', notte a ' + d.sleptAt : '')).join('\n') + '\nTotale ' + done.toFixed(0) + ' km' + (salita ? ' e +' + salita + ' m' : '');
   m.append(el('<a class="btn" style="text-decoration:none" href="https://wa.me/?text=' + encodeURIComponent(txt) + '" target="_blank" rel="noopener">Condividi su WhatsApp</a>'));
 }
 
@@ -956,9 +974,9 @@ function viewSetup() {
     try {
       let j = JSON.parse($('#setupTxt').value);
       /* trasloco — il pacchetto completo porta con sé anche diario, timbri e km */
-      if (j && j.bco && j.state && j.state.setup) {
+      if (j && j.bco && j.state && (j.state.setup || j.state.days)) {
         S = Object.assign(S, j.state); saveState();
-        $('#setupMsg').textContent = 'Trasloco completato! ✅ Diario e km sono qui.'; TAB = 'oggi'; setTimeout(render, 400); return;
+        $('#setupMsg').textContent = (j.state.setup ? 'Trasloco completato! ✅ Diario e km sono qui.' : 'Giornate caricate! ✅ Le trovi nel Diario.'); TAB = j.state.setup ? 'oggi' : 'diario'; setTimeout(render, 400); return;
       }
       if (!j.profile || !j.profile.start) throw new Error('manca profile.start');
       const isoRe = /^\d{4}-\d{2}-\d{2}$/;

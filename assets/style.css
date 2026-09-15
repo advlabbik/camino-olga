@@ -226,3 +226,4 @@ ol.passi li::marker { font-weight: 800; color: var(--blue); }
 }
 #posHits { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 #posHits .hit { padding: 10px 14px; font-size: 14px; }
+.diary-day .dp { color: var(--muted); margin-left: 0; }
