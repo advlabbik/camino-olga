@@ -218,3 +218,11 @@ ol.passi li::marker { font-weight: 800; color: var(--blue); }
 /* barra di avanzamento della tappa */
 .pbar { height: 9px; background: var(--panel2); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; margin-top: 4px; }
 .pbar i { display: block; height: 100%; background: var(--yellow); border-radius: 99px; }
+
+/* ripiego posizione — ricerca del paese a mano */
+#posQ {
+  width: 100%; margin-top: 10px; padding: 12px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size: 16px;
+}
+#posHits { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+#posHits .hit { padding: 10px 14px; font-size: 14px; }

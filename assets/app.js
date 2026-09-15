@@ -35,16 +35,36 @@ async function loadData() {
 const QS = new URLSearchParams(location.search);
 function now() { const o = QS.get('now'); return o ? new Date(o) : new Date(); }
 function todayStr(d) { d = d || now(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
-function getPosition() {
+/* posizione indicata a mano — vive finché l'app resta aperta, sparisce appena il GPS torna */
+let MANUAL = null;
+function inAppBrowser() {
+  const ua = navigator.userAgent || '';
+  if (/FBAN|FBAV|FB_IAB|Instagram|LinkedInApp|Line\/|Twitter|WhatsApp|Telegram|MicroMessenger|GSA\//i.test(ua)) return true;
+  /* su iPhone il browser dentro un'altra app non scrive mai "Version/" — Safari sì */
+  const iOS = /iPhone|iPad|iPod/i.test(ua);
+  return iOS && !isStandalone() && !/CriOS|FxiOS|EdgiOS|OPiOS/i.test(ua) && !/Version\/\d/i.test(ua);
+}
+function geoOnce(opts) {
+  return new Promise((res, rej) => navigator.geolocation.getCurrentPosition(
+    p => res({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy }), rej, opts));
+}
+async function getPosition() {
   const o = QS.get('pos');
-  if (o) { const [la, lo] = o.split(',').map(Number); return Promise.resolve({ lat: la, lon: lo, sim: true }); }
-  return new Promise((res, rej) => {
-    if (!navigator.geolocation) return rej(new Error('GPS non disponibile su questo dispositivo'));
-    navigator.geolocation.getCurrentPosition(
-      p => res({ lat: p.coords.latitude, lon: p.coords.longitude }),
-      e => rej(new Error('Non riesco a leggere la posizione. Controlla che il GPS sia attivo e che il browser abbia il permesso.')),
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 });
-  });
+  if (o) { const [la, lo] = o.split(',').map(Number); return { lat: la, lon: lo, sim: true }; }
+  if (MANUAL) return { lat: MANUAL.lat, lon: MANUAL.lon, manual: true };
+  if (!navigator.geolocation) { const e = new Error('Questo telefono non sa dirmi dove sei'); e.kind = 'nogps'; throw e; }
+  const fail = k => { const e = new Error('Posizione non disponibile'); e.kind = k; return e; };
+  try {
+    const g = await geoOnce({ enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+    MANUAL = null; return g;
+  } catch (e1) {
+    if (e1 && e1.code === 1) throw fail('denied');
+    /* GPS lento o cielo coperto — secondo tentativo con le antenne, meno preciso ma quasi sempre buono */
+    try {
+      const g = await geoOnce({ enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 });
+      MANUAL = null; return g;
+    } catch (e2) { throw fail(e2 && e2.code === 1 ? 'denied' : 'timeout'); }
+  }
 }
 
 /* ===================== geometria ===================== */
@@ -443,6 +463,68 @@ const $ = sel => document.querySelector(sel);
 function el(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 function card(html, cls) { return '<div class="card ' + (cls || '') + '">' + html + '</div>'; }
+/* ===== quando il telefono non dà la posizione ===== */
+function normName(x) { return String(x).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+function posFailHTML(kind) {
+  const iOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+  let h = '<h3>Non riesco a vedere dove sei</h3>';
+  if (inAppBrowser()) {
+    h += '<p class="small">Mi hai aperta dentro un\'altra app — WhatsApp, Telegram, Instagram — e lì il telefono la posizione non me la passa. Tocca i <b>tre puntini</b> in basso e scegli <b>Apri in Safari</b>, poi mettimi in Home dalla conchiglia. Da lì funziono.</p>';
+  } else if (kind === 'denied' && iOS && isStandalone()) {
+    h += '<p class="small">Il permesso è chiuso. Controlla in <b>Impostazioni → Privacy e sicurezza → Localizzazione</b> che sia accesa. Se resta chiuso, tieni premuta la mia conchiglia in Home, rimuovila e rimettila — il permesso riparte da capo e te lo richiedo alla prima partenza.</p>';
+  } else if (kind === 'denied' && iOS) {
+    h += '<p class="small">Il permesso è chiuso. Apri <b>Impostazioni → Privacy e sicurezza → Localizzazione</b>, accendila e metti <b>Safari</b> su <b>Mentre usi l\'app</b>. Poi torna qui, tocca <b>aA</b> accanto all\'indirizzo, apri <b>Impostazioni sito web</b> e metti la posizione su <b>Consenti</b>.</p>';
+  } else if (kind === 'denied') {
+    h += '<p class="small">Il permesso è chiuso. Tocca il lucchetto accanto all\'indirizzo, apri i permessi del sito e metti la posizione su <b>Consenti</b>.</p>';
+  } else if (kind === 'nogps') {
+    h += '<p class="small">Questo telefono non sa dirmi dove sei. Nessun problema, dimmelo tu e faccio tutto uguale.</p>';
+  } else {
+    h += '<p class="small">Il telefono ci ha provato due volte e non ce l\'ha fatta. Capita al chiuso, nei paesi di pietra e quando il GPS è appena acceso — esci all\'aperto e riprova, di solito bastano pochi secondi.</p>';
+  }
+  h += '<div class="hc-act"><button class="btn" id="posRetry">Riprova</button><button class="btn ghost" id="posManual">Dico io dove sono</button></div>';
+  return card(h, 'warn');
+}
+function manualPickHTML() {
+  let h = '<h3>Dimmi dove sei</h3><p class="small">Scrivi il paese dove ti trovi, bastano le prime lettere. Prendo io le coordinate e ti preparo la giornata come sempre.</p>';
+  h += '<input id="posQ" type="search" placeholder="Zubiri, Estella, Sarria…" autocomplete="off" autocapitalize="words">';
+  h += '<div id="posHits"></div>';
+  if (S.lastPos && S.lastPos.seg) h += '<p class="small mt"><button class="btn ghost" id="posLast">Sono ancora a ' + esc(nearLocName(S.lastPos.seg, S.lastPos.km)) + '</button></p>';
+  h += '<p class="small mt"><button class="btn ghost" id="posBack">Torna indietro</button></p>';
+  return card(h);
+}
+function cercaLoc(q) {
+  if (!DATA.loc || q.length < 2) return [];
+  const n = normName(q);
+  return DATA.loc.filter(L => normName(L.name).includes(n))
+    .sort((a, b) => (normName(b.name).startsWith(n) - normName(a.name).startsWith(n)) || ((b.pop || 0) - (a.pop || 0)))
+    .slice(0, 8);
+}
+/* mostra il ripiego e riesegue il flusso una volta scelta la posizione */
+function showPosFail(c, e, retry) {
+  if (!e || !e.kind) return false;
+  c.innerHTML = posFailHTML(e.kind);
+  $('#posRetry').onclick = retry;
+  $('#posManual').onclick = () => {
+    c.innerHTML = manualPickHTML();
+    const q = $('#posQ'), hits = $('#posHits');
+    const scegli = (lat, lon, nome) => { MANUAL = { lat, lon, name: nome }; retry(); };
+    q.oninput = () => {
+      const r = cercaLoc(q.value.trim());
+      hits.innerHTML = r.length ? r.map((L, i) => '<button class="btn ghost hit" data-i="' + i + '">' + esc(L.name) + '</button>').join('')
+        : (q.value.trim().length >= 2 ? '<p class="small">Non lo trovo tra i paesi sul cammino — prova col nome spagnolo o con un paese vicino.</p>' : '');
+      hits.querySelectorAll('.hit').forEach(b => b.onclick = () => { const L = r[+b.dataset.i]; scegli(L.lat, L.lon, L.name); });
+    };
+    q.focus();
+    const last = $('#posLast');
+    if (last) last.onclick = () => { const pt = ptAt(S.lastPos.seg, S.lastPos.km); scegli(pt[0], pt[1], nearLocName(S.lastPos.seg, S.lastPos.km)); };
+    $('#posBack').onclick = retry;
+  };
+  return true;
+}
+function manualBadge(g) {
+  if (!g || !g.manual) return '';
+  return card('<p class="small">📍 Sto usando il punto che mi hai indicato — <b>' + esc(MANUAL ? MANUAL.name : '') + '</b>. Quando il GPS torna a funzionare riprendo da solo.</p>', 'ok');
+}
 function statusAge() {
   if (!DATA.status || !DATA.status.updated) return null;
   const days = Math.floor((now() - new Date(DATA.status.updated)) / 86400000);
@@ -627,7 +709,8 @@ async function flowParto() {
     day.plan = buildPlanModel(pos, wx, tonight, pace, giaPartita ? day : null);
     saveState();
     c.innerHTML = ''; renderPlan(c, day.plan, false);
-  } catch (e) { c.innerHTML = card('<h3>Ops</h3><p class="small">' + esc(e.message) + '</p>', 'warn'); }
+    const mbP = manualBadge(g); if (mbP) c.prepend(el(mbP));
+  } catch (e) { if (!showPosFail(c, e, flowParto)) c.innerHTML = card('<h3>Ops</h3><p class="small">' + esc(e.message) + '</p>', 'warn'); }
 }
 function buildPlanModel(pos, wx, tonight, pace, prev) {
   const mile = milestoneHit(pos.seg, pos.km);
@@ -739,6 +822,7 @@ async function flowDormo() {
     try { wx = await fetchWeather(buildSamples(pos.seg, pos.km, pace)); } catch (e) {}
     const adv = adviseSleep(pos, wx);
     c.innerHTML = '';
+    const mbD = manualBadge(g); if (mbD) c.append(el(mbD));
     c.append(el('<div class="phrase">' + esc(pickPhrase('advisor')) + '</div>'));
     if (tonight) c.append(el(card('<h3>Hai già un letto per stasera 🎉</h3><p><b>' + esc(tonight.name) + '</b> — ' + esc(tonight.place) + (tonight.seg === pos.seg ? ' · mancano ' + Math.max(0, tonight.km - pos.km).toFixed(1) + ' km' : '') + '</p>', 'ok')));
     const age = statusAge();
@@ -760,7 +844,7 @@ async function flowDormo() {
     }
     if (adv.beyond && adv.beyond.length && adv.options.length) c.append(el(card('<p class="small">Più avanti, oltre il raggio di oggi — ' + adv.beyond.map(b => esc(b.name) + ' (' + b.dist.toFixed(0) + ' km)').join(' · ') + '</p>')));
     c.append(el(card('<p class="small">Ricorda — i municipali non si prenotano (fila, credencial, contanti), i privati sì (telefono, WhatsApp, Booking). Alle 18 pensa a domani sera.</p>')));
-  } catch (e) { c.innerHTML = card('<p class="small">' + esc(e.message) + '</p>', 'warn'); }
+  } catch (e) { if (!showPosFail(c, e, flowDormo)) c.innerHTML = card('<p class="small">' + esc(e.message) + '</p>', 'warn'); }
 }
 
 async function flowFine() {
@@ -786,6 +870,7 @@ async function flowFine() {
     const hard = day.km > 26 || (pos && day.start && dplusBetween(pos.seg, day.start.km, pos.km) > 900);
     const phrase = mile || pickPhrase(hard ? 'fine_dura' : 'fine');
     c.innerHTML = '';
+    const mbF = manualBadge(g); if (mbF) c.append(el(mbF));
     c.append(el('<div class="phrase">' + (mile ? '⭐ ' : '') + esc(phrase) + '</div>'));
     const done = S.days.reduce((a, d) => a + (d.km || 0), 0);
     let h = '<h2>Tappa ' + S.days.length + ' chiusa</h2><div class="stat-row">' + stat(day.km.toFixed(1) + ' km', 'oggi') + stat(done.toFixed(0) + ' km', 'totali') + stat(dailyKmMedian().toFixed(0) + ' km', 'tua media') + '</div>';
@@ -817,7 +902,7 @@ async function flowFine() {
     let ev = '<h3>Stasera, con calma</h3><p class="small">🛏 Controllo cimici in 60 secondi — cuciture del materasso, zaino MAI sul letto<br>🦶 Piedi — lava, asciuga, aria. Ogni punto caldo si tratta subito<br>🍽 Cena da pellegrina 19-20, i ristoranti spagnoli aprono tardi<br>📞 <b>Alle 18 prenota domani sera</b> — la regola d’oro di settembre' + (pos && pos.seg === 'frances' && pos.km > 640 ? '<br>📮 Da Sarria in poi — oggi hai preso i 2 timbri?' : '') + '</p>';
     if (tomBooking) ev += '<p class="small mt"><b>Domani sera sei già a posto</b> — ' + esc(tomBooking.name) + ', ' + esc(tomBooking.place) + '.</p>';
     c.append(el(card(ev)));
-  } catch (e) { c.innerHTML = card('<p class="small">' + esc(e.message) + '</p>', 'warn'); }
+  } catch (e) { if (!showPosFail(c, e, flowFine)) c.innerHTML = card('<p class="small">' + esc(e.message) + '</p>', 'warn'); }
 }
 
 function viewDiario() {
@@ -858,10 +943,23 @@ function viewInfo() {
 function viewSetup() {
   const m = $('#main'); m.innerHTML = '';
   m.append(el(card('<h2>Configurazione</h2><p class="small">Incolla qui il file di configurazione preparato con Andrea (prenotazioni e viaggio). Resta solo su questo telefono — non viene inviato da nessuna parte.</p><textarea id="setupTxt" placeholder=\'{"profile": {...}}\'></textarea><div class="mt"><button class="btn" id="setupSave">Salva</button> <button class="btn ghost" id="setupWipe">Cancella tutto</button></div><p class="small mt" id="setupMsg"></p>')));
+  m.append(el(card('<h3>Trasloco su un altro telefono o sull’icona in Home</h3><p class="small">Su iPhone l’app aperta dalla Home ha una memoria tutta sua, separata dal browser. Prima di traslocare prendi da qui tutto quanto — configurazione, diario, timbri e km — e incollalo di là nel riquadro qui sopra.</p><div class="mt"><button class="btn ghost" id="setupCopy">Copia tutto per il trasloco</button></div><textarea id="setupDump" style="display:none"></textarea><p class="small mt" id="setupCopyMsg"></p>')));
+  $('#setupCopy').onclick = async () => {
+    const dump = JSON.stringify({ bco: 1, state: S });
+    const ta = $('#setupDump'); ta.style.display = 'block'; ta.value = dump;
+    let ok = false;
+    try { await navigator.clipboard.writeText(dump); ok = true; } catch (e) { ta.select(); }
+    $('#setupCopyMsg').textContent = ok ? 'Copiato ✅ — incollalo di là e premi Salva' : 'Tieni premuto qui sopra, Seleziona tutto e Copia';
+  };
   if (S.setup) $('#setupTxt').value = JSON.stringify(S.setup, null, 1);
   $('#setupSave').onclick = () => {
     try {
-      const j = JSON.parse($('#setupTxt').value);
+      let j = JSON.parse($('#setupTxt').value);
+      /* trasloco — il pacchetto completo porta con sé anche diario, timbri e km */
+      if (j && j.bco && j.state && j.state.setup) {
+        S = Object.assign(S, j.state); saveState();
+        $('#setupMsg').textContent = 'Trasloco completato! ✅ Diario e km sono qui.'; TAB = 'oggi'; setTimeout(render, 400); return;
+      }
       if (!j.profile || !j.profile.start) throw new Error('manca profile.start');
       const isoRe = /^\d{4}-\d{2}-\d{2}$/;
       if (!isoRe.test(j.profile.start)) throw new Error('profile.start deve essere AAAA-MM-GG (es. 2026-09-12)');
